@@ -1,6 +1,7 @@
 /**
  * Clawd the Crab - Death Frames
  * "wow" = standing death, "wow-down" = ducking death
+ * Based on STL geometry
  */
 
 function clawdBuildDeathFrame(isDucking) {
@@ -8,98 +9,54 @@ function clawdBuildDeathFrame(isDucking) {
   var boxes = [];
 
   if (!isDucking) {
-    // === STANDING DEATH: knocked back, claws up in surprise ===
+    // === STANDING DEATH ===
 
-    // Body (tilted back slightly - shift top back, bottom forward)
-    boxes.push(clawdCreateBox(0, 0.68, 0.05,   1.0, 0.50, 0.80, C.body));
-    boxes.push(clawdCreateBox(0, 0.96, 0.08,   0.70, 0.15, 0.55, C.shellTop));
-    boxes.push(clawdCreateBox(0, 0.40, 0.02,   0.75, 0.12, 0.55, C.belly));
-    boxes.push(clawdCreateBox(0, 0.70, -0.28,  0.55, 0.30, 0.12, C.body));
+    // Body (uniform color)
+    boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, 0));
+    // Claw tips
+    boxes.push(clawdSTLBox(-18, -36, 66, 15, -24, 78, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  24, 66, 15,  36, 78, C.claw, 0));
 
-    // Eyes (wide, surprised - larger eyeballs, pupils up)
-    boxes.push(clawdCreateBox(-0.18, 1.10, -0.25, 0.08, 0.20, 0.08, C.body));
-    boxes.push(clawdCreateBox(-0.18, 1.26, -0.28, 0.15, 0.15, 0.15, C.eyeWhite));
-    boxes.push(clawdCreateBox(-0.18, 1.28, -0.37, 0.06, 0.06, 0.03, C.pupil));
-    boxes.push(clawdCreateBox( 0.18, 1.10, -0.25, 0.08, 0.20, 0.08, C.body));
-    boxes.push(clawdCreateBox( 0.18, 1.26, -0.28, 0.15, 0.15, 0.15, C.eyeWhite));
-    boxes.push(clawdCreateBox( 0.18, 1.28, -0.37, 0.06, 0.06, 0.03, C.pupil));
+    // Eyes (black, protruding from front face)
+    boxes.push(clawdSTLBox(-30, -30, 42, -18, -12, 60, C.pupil, 0));
+    boxes.push(clawdSTLBox(-30,  12, 42, -18,  30, 60, C.pupil, 0));
 
-    // Mouth (open wide - surprised)
-    boxes.push(clawdCreateBox(0, 0.52, -0.38, 0.22, 0.10, 0.06, C.mouth));
+    // Legs (orange)
+    boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 18, C.body, 0));
+    boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 18, C.body, 0));
+    boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 18, C.body, 0));
+    boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 18, C.body, 0));
 
-    // Claws (raised high, spread in surprise)
-    boxes.push(clawdCreateBox(-0.60, 0.75, 0,    0.20, 0.18, 0.18, C.claw));
-    boxes.push(clawdCreateBox(-0.72, 1.10, 0,    0.15, 0.48, 0.15, C.claw));
-    boxes.push(clawdCreateBox(-0.80, 1.42, -0.02, 0.24, 0.09, 0.13, C.claw));
-    boxes.push(clawdCreateBox(-0.80, 1.30, -0.02, 0.24, 0.09, 0.13, C.claw));
-
-    boxes.push(clawdCreateBox( 0.60, 0.75, 0,    0.20, 0.18, 0.18, C.claw));
-    boxes.push(clawdCreateBox( 0.72, 1.10, 0,    0.15, 0.48, 0.15, C.claw));
-    boxes.push(clawdCreateBox( 0.80, 1.42, -0.02, 0.24, 0.09, 0.13, C.claw));
-    boxes.push(clawdCreateBox( 0.80, 1.30, -0.02, 0.24, 0.09, 0.13, C.claw));
-
-    // Legs (splayed out, limp)
-    boxes.push(clawdCreateBox(-0.40, 0.28, -0.28, 0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.50, 0.12, -0.32, 0.10, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.40, 0.28, -0.28, 0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.50, 0.12, -0.32, 0.10, 0.16, 0.10, C.leg));
-
-    boxes.push(clawdCreateBox(-0.45, 0.28, 0,     0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.55, 0.12, 0,     0.10, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.45, 0.28, 0,     0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.55, 0.12, 0,     0.10, 0.16, 0.10, C.leg));
-
-    boxes.push(clawdCreateBox(-0.40, 0.28, 0.28,  0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.50, 0.12, 0.32,  0.10, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.40, 0.28, 0.28,  0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.50, 0.12, 0.32,  0.10, 0.16, 0.10, C.leg));
+    // Claws raised higher (surprise!)
+    boxes.push(clawdSTLBox(-18, -72, 60, -6, -48, 72, C.claw, 0));
+    boxes.push(clawdSTLBox(-18, -72, 72, -6, -48, 84, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  48, 60, -6,  72, 72, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  48, 72, -6,  72, 84, C.claw, 0));
 
   } else {
-    // === DUCKING DEATH: flattened and knocked over ===
+    // === DUCKING DEATH ===
 
-    // Body (very flat)
-    boxes.push(clawdCreateBox(0, 0.35, 0.05,   1.20, 0.25, 0.95, C.body));
-    boxes.push(clawdCreateBox(0, 0.50, 0.05,   0.85, 0.08, 0.70, C.shellTop));
-    boxes.push(clawdCreateBox(0, 0.20, 0.02,   0.95, 0.08, 0.70, C.belly));
-    boxes.push(clawdCreateBox(0, 0.36, -0.40,  0.55, 0.18, 0.10, C.body));
+    // Body (uniform color)
+    boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
+    // Claw tips
+    boxes.push(clawdSTLBox(-18, -36, 43, 15, -24, 50, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  24, 43, 15,  36, 50, C.claw, 0));
 
-    // Eyes (dazed, lower)
-    boxes.push(clawdCreateBox(-0.18, 0.56, -0.34, 0.08, 0.08, 0.08, C.body));
-    boxes.push(clawdCreateBox(-0.18, 0.64, -0.36, 0.14, 0.14, 0.14, C.eyeWhite));
-    boxes.push(clawdCreateBox(-0.18, 0.66, -0.44, 0.06, 0.06, 0.03, C.pupil));
-    boxes.push(clawdCreateBox( 0.18, 0.56, -0.34, 0.08, 0.08, 0.08, C.body));
-    boxes.push(clawdCreateBox( 0.18, 0.64, -0.36, 0.14, 0.14, 0.14, C.eyeWhite));
-    boxes.push(clawdCreateBox( 0.18, 0.66, -0.44, 0.06, 0.06, 0.03, C.pupil));
+    // Eyes (black, protruding from front face)
+    boxes.push(clawdSTLBox(-30, -30, 22, -18, -12, 36, C.pupil, 0));
+    boxes.push(clawdSTLBox(-30,  12, 22, -18,  30, 36, C.pupil, 0));
 
-    // Mouth
-    boxes.push(clawdCreateBox(0, 0.24, -0.46, 0.20, 0.08, 0.04, C.mouth));
+    // Legs (orange)
+    boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 8, C.body, 0));
+    boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 8, C.body, 0));
+    boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 8, C.body, 0));
+    boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 8, C.body, 0));
 
-    // Claws (drooping to sides)
-    boxes.push(clawdCreateBox(-0.65, 0.35, 0,   0.20, 0.12, 0.18, C.claw));
-    boxes.push(clawdCreateBox(-0.80, 0.40, 0,   0.15, 0.18, 0.15, C.claw));
-    boxes.push(clawdCreateBox(-0.88, 0.52, -0.02, 0.20, 0.07, 0.12, C.claw));
-    boxes.push(clawdCreateBox(-0.88, 0.42, -0.02, 0.20, 0.07, 0.12, C.claw));
-
-    boxes.push(clawdCreateBox( 0.65, 0.35, 0,   0.20, 0.12, 0.18, C.claw));
-    boxes.push(clawdCreateBox( 0.80, 0.40, 0,   0.15, 0.18, 0.15, C.claw));
-    boxes.push(clawdCreateBox( 0.88, 0.52, -0.02, 0.20, 0.07, 0.12, C.claw));
-    boxes.push(clawdCreateBox( 0.88, 0.42, -0.02, 0.20, 0.07, 0.12, C.claw));
-
-    // Legs (spread flat)
-    boxes.push(clawdCreateBox(-0.50, 0.14, -0.30, 0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.60, 0.06, -0.34, 0.10, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.50, 0.14, -0.30, 0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.60, 0.06, -0.34, 0.10, 0.10, 0.10, C.leg));
-
-    boxes.push(clawdCreateBox(-0.55, 0.14, 0,     0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.65, 0.06, 0,     0.10, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.55, 0.14, 0,     0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.65, 0.06, 0,     0.10, 0.10, 0.10, C.leg));
-
-    boxes.push(clawdCreateBox(-0.50, 0.14, 0.30,  0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.60, 0.06, 0.34,  0.10, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.50, 0.14, 0.30,  0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.60, 0.06, 0.34,  0.10, 0.10, 0.10, C.leg));
+    // Claws drooping
+    boxes.push(clawdSTLBox(-18, -78, 22, -6, -48, 36, C.claw, 0));
+    boxes.push(clawdSTLBox(-18, -78, 36, -6, -48, 43, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  48, 22, -6,  78, 36, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  48, 36, -6,  78, 43, C.claw, 0));
   }
 
   return clawdMergeBoxes(boxes);

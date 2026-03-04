@@ -1,6 +1,12 @@
 /**
- * Clawd the Crab - Procedural 3D Model
+ * Clawd the Crab - Procedural 3D Model (based on clawd_large.stl)
  * Replaces the T-Rex with Claude Code's crab mascot
+ *
+ * STL coordinate mapping:
+ *   STL X (front=-18, back=15) -> game Z (front is -Z, toward camera after Y rotation)
+ *   STL Y (left=-72, right=72) -> game X (left-right)
+ *   STL Z (bottom=-6, top=90) -> game Y (height)
+ *   Scale: 1.3/96 ≈ 0.01354 per STL unit
  */
 
 // === Shared crab model utilities (used by dyno.js, dyno_band.js, dyno_wow.js) ===
@@ -16,15 +22,31 @@ var ClawdColors = {
   mouth:    {r: 0.60, g: 0.25, b: 0.08}   // dark mouth area
 };
 
+var CLAWD_SCALE = 1.3 / 96.0; // Scale STL to ~1.3 game units tall
+
 function clawdCreateBox(cx, cy, cz, w, h, d, color) {
   var geo = new THREE.BoxBufferGeometry(w, h, d);
   geo.translate(cx, cy, cz);
   return {geometry: geo, color: color};
 }
 
+// Convert STL box bounds to game coordinates
+// stl_x: front(-18) to back(15), stl_y: left(-72) to right(72), stl_z: bottom(-6) to top(90)
+function clawdSTLBox(x1, y1, z1, x2, y2, z2, color, dyOff) {
+  var s = CLAWD_SCALE;
+  var dy = dyOff || 0;
+  var cx = ((y1 + y2) / 2) * s;
+  var cy = ((z1 + z2) / 2 + 6) * s + dy;
+  var cz = ((x1 + x2) / 2 + 1.5) * s;  // STL front(-18) → negative Z (toward camera)
+  var w = Math.abs(y2 - y1) * s;
+  var h = Math.abs(z2 - z1) * s;
+  var d = Math.abs(x2 - x1) * s;
+  return clawdCreateBox(cx, cy, cz, w, h, d, color);
+}
+
 function clawdMergeBoxes(boxes) {
-  var vertsPerBox = 24; // BoxGeometry: 4 verts * 6 faces
-  var idxPerBox = 36;   // BoxGeometry: 2 tris * 3 idx * 6 faces
+  var vertsPerBox = 24;
+  var idxPerBox = 36;
   var totalVerts = boxes.length * vertsPerBox;
   var totalIdx = boxes.length * idxPerBox;
 
@@ -73,74 +95,41 @@ function clawdBuildRunFrame(frame) {
   var C = ClawdColors;
   var boxes = [];
 
-  // Animation phases
+  // Animation
   var phase = (frame / 8) * Math.PI * 2;
-  var legA = Math.sin(phase) * 0.04;           // front+back legs
-  var legB = Math.sin(phase + Math.PI) * 0.04;  // middle legs (opposite)
-  var clawBob = Math.sin(phase) * 0.025;        // gentle claw bobbing
-  var bodyBob = Math.sin(phase * 2) * 0.01;     // subtle body bounce
+  var clawBob = Math.sin(phase) * 0.02;
+  var bodyBob = Math.sin(phase * 2) * 0.008;
+  // Leg animation: alternating pairs swing forward/back
+  var legSwingA = Math.sin(phase) * 4;       // STL Z units of swing
+  var legSwingB = Math.sin(phase + Math.PI) * 4;
 
-  // === BODY ===
-  // Main carapace - wide dome
-  boxes.push(clawdCreateBox(0, 0.70 + bodyBob, 0,    1.0, 0.50, 0.80, C.body));
-  // Upper shell ridge
-  boxes.push(clawdCreateBox(0, 0.98 + bodyBob, 0,    0.70, 0.15, 0.55, C.shellTop));
-  // Underbelly
-  boxes.push(clawdCreateBox(0, 0.42 + bodyBob, 0,    0.75, 0.12, 0.55, C.belly));
-  // Front face plate
-  boxes.push(clawdCreateBox(0, 0.72 + bodyBob, -0.32, 0.55, 0.30, 0.12, C.body));
+  // === BODY (from STL: merged into one solid block, uniform color) ===
+  // Main carapace: STL Y[-48,48] Z[18,90] X[-18,9]
+  boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, bodyBob));
+  // Claw tip protrusions (wider at Z[66,78])
+  boxes.push(clawdSTLBox(-18, -36, 66, 15, -24, 78, C.claw, bodyBob));
+  boxes.push(clawdSTLBox(-18,  24, 66, 15,  36, 78, C.claw, bodyBob));
 
-  // === EYES ===
-  // Left eye stalk
-  boxes.push(clawdCreateBox(-0.16, 1.10 + bodyBob, -0.28, 0.08, 0.18, 0.08, C.body));
-  // Left eyeball
-  boxes.push(clawdCreateBox(-0.16, 1.24 + bodyBob, -0.30, 0.13, 0.13, 0.13, C.eyeWhite));
-  // Left pupil
-  boxes.push(clawdCreateBox(-0.16, 1.24 + bodyBob, -0.38, 0.07, 0.08, 0.03, C.pupil));
-  // Right eye stalk
-  boxes.push(clawdCreateBox(0.16, 1.10 + bodyBob, -0.28, 0.08, 0.18, 0.08, C.body));
-  // Right eyeball
-  boxes.push(clawdCreateBox(0.16, 1.24 + bodyBob, -0.30, 0.13, 0.13, 0.13, C.eyeWhite));
-  // Right pupil
-  boxes.push(clawdCreateBox(0.16, 1.24 + bodyBob, -0.38, 0.07, 0.08, 0.03, C.pupil));
+  // === EYES (black, protruding from front face) ===
+  // STL X goes further negative than body (body front is X=-18, eyes at X=-30)
+  // so they stick out clearly in front
+  boxes.push(clawdSTLBox(-30, -30, 42, -18, -12, 60, C.pupil, bodyBob));  // left eye
+  boxes.push(clawdSTLBox(-30,  12, 42, -18,  30, 60, C.pupil, bodyBob));  // right eye
 
-  // === MOUTH ===
-  boxes.push(clawdCreateBox(0, 0.55 + bodyBob, -0.38, 0.18, 0.06, 0.04, C.mouth));
+  // === LEGS (orange, from STL eye positions, now animated) ===
+  // These are the STL bottom protrusions recolored as orange legs
+  // Front left pair (legSwingA)
+  boxes.push(clawdSTLBox(-18, -48, -6 + legSwingA, -6, -36, 18 + legSwingA, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  12, -6 + legSwingA, -6,  24, 18 + legSwingA, C.body, 0));
+  // Inner pair (legSwingB - opposite phase)
+  boxes.push(clawdSTLBox( -6, -24, -6 + legSwingB,  6, -12, 18 + legSwingB, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  36, -6 + legSwingB,  6,  48, 18 + legSwingB, C.body, 0));
 
-  // === LEFT CLAW ===
-  // Shoulder joint
-  boxes.push(clawdCreateBox(-0.55, 0.75 + bodyBob, 0,   0.20, 0.18, 0.18, C.claw));
-  // Upper arm (vertical)
-  boxes.push(clawdCreateBox(-0.65, 1.00 + clawBob, 0,   0.15, 0.38, 0.15, C.claw));
-  // Upper pincer
-  boxes.push(clawdCreateBox(-0.73, 1.26 + clawBob, -0.02, 0.22, 0.08, 0.12, C.claw));
-  // Lower pincer
-  boxes.push(clawdCreateBox(-0.73, 1.14 + clawBob, -0.02, 0.22, 0.08, 0.12, C.claw));
-
-  // === RIGHT CLAW ===
-  boxes.push(clawdCreateBox(0.55, 0.75 + bodyBob, 0,   0.20, 0.18, 0.18, C.claw));
-  boxes.push(clawdCreateBox(0.65, 1.00 + clawBob, 0,   0.15, 0.38, 0.15, C.claw));
-  boxes.push(clawdCreateBox(0.73, 1.26 + clawBob, -0.02, 0.22, 0.08, 0.12, C.claw));
-  boxes.push(clawdCreateBox(0.73, 1.14 + clawBob, -0.02, 0.22, 0.08, 0.12, C.claw));
-
-  // === LEGS (3 pairs) ===
-  // Front pair (legA phase)
-  boxes.push(clawdCreateBox(-0.38, 0.30 + legA, -0.25,  0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.46, 0.12 + legA, -0.25,  0.10, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.38, 0.30 + legA, -0.25,  0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.46, 0.12 + legA, -0.25,  0.10, 0.18, 0.10, C.leg));
-
-  // Middle pair (legB phase - opposite)
-  boxes.push(clawdCreateBox(-0.42, 0.30 + legB, 0,      0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.50, 0.12 + legB, 0,      0.10, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.42, 0.30 + legB, 0,      0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.50, 0.12 + legB, 0,      0.10, 0.18, 0.10, C.leg));
-
-  // Back pair (legA phase - same as front)
-  boxes.push(clawdCreateBox(-0.38, 0.30 + legA, 0.25,   0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.46, 0.12 + legA, 0.25,   0.10, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.38, 0.30 + legA, 0.25,   0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.46, 0.12 + legA, 0.25,   0.10, 0.18, 0.10, C.leg));
+  // === CLAWS (side appendages, 2 stacked boxes per side) ===
+  boxes.push(clawdSTLBox(-18, -72, 42, -6, -48, 54, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18, -72, 54, -6, -48, 66, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 42, -6,  72, 54, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 54, -6,  72, 66, C.claw, clawBob));
 
   return clawdMergeBoxes(boxes);
 }

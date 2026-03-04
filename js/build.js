@@ -113,7 +113,8 @@
         }
       }
     }
-  }/**
+  }
+/**
  * Audio class.
  * @type {AudioManager}
  */
@@ -189,7 +190,8 @@ class AudioManager {
     resume(what) {
       this.sounds[what].play();
     }
-  }/**
+  }
+/**
  * Enemy class v4.
  * This enemy manager gererates N number of mesh groups(!) and puts them to pool.
  * And only N of them will be randomly rendered within the buffer.
@@ -675,7 +677,8 @@ class EnemyManager {
 	        this.pteroNextFrame();
 	    }
     }
-}/**
+}
+/**
  * Score class.
  * @type {ScoreManager}
  */
@@ -810,7 +813,8 @@ class ScoreManager {
       this.ctx.fillStyle = 'rgba(106,133,145,1)';
       this.ctx.fillText(text, 0, 60);
     }
-  }/**
+  }
+/**
  * Initialization of scene, camera, renderer & stats.
  * @type {THREE}
  */
@@ -884,7 +888,8 @@ if(config.renderer.postprocessing.enable) {
 		saoPass.params.saoBlurDepthCutoff = 0.1;
 		composer.addPass( saoPass );
 	}
-}/**
+}
+/**
  * Controls initialization.
  * @type {THREE.MapControls}
  */
@@ -900,7 +905,8 @@ if(config.camera.controls) {
 	controls.maxDistance = 100;
 
 	controls.maxPolarAngle = Math.PI / 2;
-}/**
+}
+/**
  * Camera stuff.
  * @type {PerspectiveCamera}
  */
@@ -950,7 +956,8 @@ function onWindowResize(){
 
     renderer.setSize( window.innerWidth, window.innerHeight );
 
-}/**
+}
+/**
  * Light stuff.
  * @type {THREE}
  */
@@ -985,7 +992,8 @@ scene.add(DLightTargetObject);
 
 if(config.camera.helper) {
 	scene.add(new THREE.CameraHelper(DLight.shadow.camera));
-}const nebulaSystem = new Nebula.default();
+}
+const nebulaSystem = new Nebula.default();
 
 
 function nebulaCreateDynoDustEmitter(spd = 5) {
@@ -1043,6 +1051,7 @@ let dynoDustEmitter = nebulaCreateDynoDustEmitter(4);
 
 nebulaSystem.addEmitter(dynoDustEmitter);
 nebulaSystem.addRenderer(new Nebula.MeshRenderer(scene, THREE));
+
 /**
  * Log class.
  * @type {LogManager}
@@ -1075,7 +1084,8 @@ class LogManager {
       else if(level == 2)
         console.log(['[FATAL] ' + message])
     }
-  }let logs = new LogManager();
+  }
+let logs = new LogManager();
 if(config.logs) {
 	logs.enable();
 }
@@ -1335,7 +1345,8 @@ if(config.logs) {
             }
         }
     }
-  }let player = new PlayerManager();
+  }
+let player = new PlayerManager();
 
 /**
  * Nature class v2.
@@ -2017,7 +2028,8 @@ class NatureManager {
     this.moveMisc(timeDelta);
   }
 
-}let nature = new NatureManager();
+}
+let nature = new NatureManager();
 
 /**
  * Load class.
@@ -2281,7 +2293,8 @@ class LoadManager {
 
       return Math.floor((100 * loaded) / total);
     }
-  }let load_manager = new LoadManager(); // start loading assets ASAP
+  }
+let load_manager = new LoadManager(); // start loading assets ASAP
 /**
  * Scene assets.
  */
@@ -2298,7 +2311,8 @@ load_manager.set_loader('ground', [], function() {
     load_manager.set_vox('ground', builder);
     load_manager.set_status('ground', true);
   });
-});load_manager.set_loader('ground_bg', [], function() {
+});
+load_manager.set_loader('ground_bg', [], function() {
   let parser = new vox.Parser();
 
   parser.parse(config.base_path + 'objects/ground sand solid.vox').then(function(voxelData) {
@@ -2310,9 +2324,16 @@ load_manager.set_loader('ground', [], function() {
     load_manager.set_vox('ground_bg', builder);
     load_manager.set_status('ground_bg', true);
   });
-});/**
- * Clawd the Crab - Procedural 3D Model
+});
+/**
+ * Clawd the Crab - Procedural 3D Model (based on clawd_large.stl)
  * Replaces the T-Rex with Claude Code's crab mascot
+ *
+ * STL coordinate mapping:
+ *   STL X (front=-18, back=15) -> game Z (front is -Z, toward camera after Y rotation)
+ *   STL Y (left=-72, right=72) -> game X (left-right)
+ *   STL Z (bottom=-6, top=90) -> game Y (height)
+ *   Scale: 1.3/96 ≈ 0.01354 per STL unit
  */
 
 // === Shared crab model utilities (used by dyno.js, dyno_band.js, dyno_wow.js) ===
@@ -2328,15 +2349,31 @@ var ClawdColors = {
   mouth:    {r: 0.60, g: 0.25, b: 0.08}   // dark mouth area
 };
 
+var CLAWD_SCALE = 1.3 / 96.0; // Scale STL to ~1.3 game units tall
+
 function clawdCreateBox(cx, cy, cz, w, h, d, color) {
   var geo = new THREE.BoxBufferGeometry(w, h, d);
   geo.translate(cx, cy, cz);
   return {geometry: geo, color: color};
 }
 
+// Convert STL box bounds to game coordinates
+// stl_x: front(-18) to back(15), stl_y: left(-72) to right(72), stl_z: bottom(-6) to top(90)
+function clawdSTLBox(x1, y1, z1, x2, y2, z2, color, dyOff) {
+  var s = CLAWD_SCALE;
+  var dy = dyOff || 0;
+  var cx = ((y1 + y2) / 2) * s;
+  var cy = ((z1 + z2) / 2 + 6) * s + dy;
+  var cz = ((x1 + x2) / 2 + 1.5) * s;  // STL front(-18) → negative Z (toward camera)
+  var w = Math.abs(y2 - y1) * s;
+  var h = Math.abs(z2 - z1) * s;
+  var d = Math.abs(x2 - x1) * s;
+  return clawdCreateBox(cx, cy, cz, w, h, d, color);
+}
+
 function clawdMergeBoxes(boxes) {
-  var vertsPerBox = 24; // BoxGeometry: 4 verts * 6 faces
-  var idxPerBox = 36;   // BoxGeometry: 2 tris * 3 idx * 6 faces
+  var vertsPerBox = 24;
+  var idxPerBox = 36;
   var totalVerts = boxes.length * vertsPerBox;
   var totalIdx = boxes.length * idxPerBox;
 
@@ -2385,74 +2422,41 @@ function clawdBuildRunFrame(frame) {
   var C = ClawdColors;
   var boxes = [];
 
-  // Animation phases
+  // Animation
   var phase = (frame / 8) * Math.PI * 2;
-  var legA = Math.sin(phase) * 0.04;           // front+back legs
-  var legB = Math.sin(phase + Math.PI) * 0.04;  // middle legs (opposite)
-  var clawBob = Math.sin(phase) * 0.025;        // gentle claw bobbing
-  var bodyBob = Math.sin(phase * 2) * 0.01;     // subtle body bounce
+  var clawBob = Math.sin(phase) * 0.02;
+  var bodyBob = Math.sin(phase * 2) * 0.008;
+  // Leg animation: alternating pairs swing forward/back
+  var legSwingA = Math.sin(phase) * 4;       // STL Z units of swing
+  var legSwingB = Math.sin(phase + Math.PI) * 4;
 
-  // === BODY ===
-  // Main carapace - wide dome
-  boxes.push(clawdCreateBox(0, 0.70 + bodyBob, 0,    1.0, 0.50, 0.80, C.body));
-  // Upper shell ridge
-  boxes.push(clawdCreateBox(0, 0.98 + bodyBob, 0,    0.70, 0.15, 0.55, C.shellTop));
-  // Underbelly
-  boxes.push(clawdCreateBox(0, 0.42 + bodyBob, 0,    0.75, 0.12, 0.55, C.belly));
-  // Front face plate
-  boxes.push(clawdCreateBox(0, 0.72 + bodyBob, -0.32, 0.55, 0.30, 0.12, C.body));
+  // === BODY (from STL: merged into one solid block, uniform color) ===
+  // Main carapace: STL Y[-48,48] Z[18,90] X[-18,9]
+  boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, bodyBob));
+  // Claw tip protrusions (wider at Z[66,78])
+  boxes.push(clawdSTLBox(-18, -36, 66, 15, -24, 78, C.claw, bodyBob));
+  boxes.push(clawdSTLBox(-18,  24, 66, 15,  36, 78, C.claw, bodyBob));
 
-  // === EYES ===
-  // Left eye stalk
-  boxes.push(clawdCreateBox(-0.16, 1.10 + bodyBob, -0.28, 0.08, 0.18, 0.08, C.body));
-  // Left eyeball
-  boxes.push(clawdCreateBox(-0.16, 1.24 + bodyBob, -0.30, 0.13, 0.13, 0.13, C.eyeWhite));
-  // Left pupil
-  boxes.push(clawdCreateBox(-0.16, 1.24 + bodyBob, -0.38, 0.07, 0.08, 0.03, C.pupil));
-  // Right eye stalk
-  boxes.push(clawdCreateBox(0.16, 1.10 + bodyBob, -0.28, 0.08, 0.18, 0.08, C.body));
-  // Right eyeball
-  boxes.push(clawdCreateBox(0.16, 1.24 + bodyBob, -0.30, 0.13, 0.13, 0.13, C.eyeWhite));
-  // Right pupil
-  boxes.push(clawdCreateBox(0.16, 1.24 + bodyBob, -0.38, 0.07, 0.08, 0.03, C.pupil));
+  // === EYES (black, protruding from front face) ===
+  // STL X goes further negative than body (body front is X=-18, eyes at X=-30)
+  // so they stick out clearly in front
+  boxes.push(clawdSTLBox(-30, -30, 42, -18, -12, 60, C.pupil, bodyBob));  // left eye
+  boxes.push(clawdSTLBox(-30,  12, 42, -18,  30, 60, C.pupil, bodyBob));  // right eye
 
-  // === MOUTH ===
-  boxes.push(clawdCreateBox(0, 0.55 + bodyBob, -0.38, 0.18, 0.06, 0.04, C.mouth));
+  // === LEGS (orange, from STL eye positions, now animated) ===
+  // These are the STL bottom protrusions recolored as orange legs
+  // Front left pair (legSwingA)
+  boxes.push(clawdSTLBox(-18, -48, -6 + legSwingA, -6, -36, 18 + legSwingA, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  12, -6 + legSwingA, -6,  24, 18 + legSwingA, C.body, 0));
+  // Inner pair (legSwingB - opposite phase)
+  boxes.push(clawdSTLBox( -6, -24, -6 + legSwingB,  6, -12, 18 + legSwingB, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  36, -6 + legSwingB,  6,  48, 18 + legSwingB, C.body, 0));
 
-  // === LEFT CLAW ===
-  // Shoulder joint
-  boxes.push(clawdCreateBox(-0.55, 0.75 + bodyBob, 0,   0.20, 0.18, 0.18, C.claw));
-  // Upper arm (vertical)
-  boxes.push(clawdCreateBox(-0.65, 1.00 + clawBob, 0,   0.15, 0.38, 0.15, C.claw));
-  // Upper pincer
-  boxes.push(clawdCreateBox(-0.73, 1.26 + clawBob, -0.02, 0.22, 0.08, 0.12, C.claw));
-  // Lower pincer
-  boxes.push(clawdCreateBox(-0.73, 1.14 + clawBob, -0.02, 0.22, 0.08, 0.12, C.claw));
-
-  // === RIGHT CLAW ===
-  boxes.push(clawdCreateBox(0.55, 0.75 + bodyBob, 0,   0.20, 0.18, 0.18, C.claw));
-  boxes.push(clawdCreateBox(0.65, 1.00 + clawBob, 0,   0.15, 0.38, 0.15, C.claw));
-  boxes.push(clawdCreateBox(0.73, 1.26 + clawBob, -0.02, 0.22, 0.08, 0.12, C.claw));
-  boxes.push(clawdCreateBox(0.73, 1.14 + clawBob, -0.02, 0.22, 0.08, 0.12, C.claw));
-
-  // === LEGS (3 pairs) ===
-  // Front pair (legA phase)
-  boxes.push(clawdCreateBox(-0.38, 0.30 + legA, -0.25,  0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.46, 0.12 + legA, -0.25,  0.10, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.38, 0.30 + legA, -0.25,  0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.46, 0.12 + legA, -0.25,  0.10, 0.18, 0.10, C.leg));
-
-  // Middle pair (legB phase - opposite)
-  boxes.push(clawdCreateBox(-0.42, 0.30 + legB, 0,      0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.50, 0.12 + legB, 0,      0.10, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.42, 0.30 + legB, 0,      0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.50, 0.12 + legB, 0,      0.10, 0.18, 0.10, C.leg));
-
-  // Back pair (legA phase - same as front)
-  boxes.push(clawdCreateBox(-0.38, 0.30 + legA, 0.25,   0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.46, 0.12 + legA, 0.25,   0.10, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.38, 0.30 + legA, 0.25,   0.16, 0.18, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.46, 0.12 + legA, 0.25,   0.10, 0.18, 0.10, C.leg));
+  // === CLAWS (side appendages, 2 stacked boxes per side) ===
+  boxes.push(clawdSTLBox(-18, -72, 42, -6, -48, 54, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18, -72, 54, -6, -48, 66, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 42, -6,  72, 54, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 54, -6,  72, 66, C.claw, clawBob));
 
   return clawdMergeBoxes(boxes);
 }
@@ -2473,9 +2477,11 @@ load_manager.set_loader('dyno', ['ground'], function() {
   load_manager.set_status('dyno', true);
   player.setPlayerFrames(load_manager.get_vox('dyno'));
 });
+
 /**
  * Clawd the Crab - Ducking Animation (8 frames)
  * Flattened pose when holding DOWN key
+ * Based on STL geometry, squished vertically to ~60%
  */
 
 function clawdBuildDuckFrame(frame) {
@@ -2483,55 +2489,34 @@ function clawdBuildDuckFrame(frame) {
   var boxes = [];
 
   var phase = (frame / 8) * Math.PI * 2;
-  var legA = Math.sin(phase) * 0.03;
-  var legB = Math.sin(phase + Math.PI) * 0.03;
+  var clawBob = Math.sin(phase) * 0.015;
 
-  // === BODY (flattened) ===
-  boxes.push(clawdCreateBox(0, 0.38, 0,      1.15, 0.30, 0.90, C.body));
-  boxes.push(clawdCreateBox(0, 0.56, 0,      0.85, 0.10, 0.70, C.shellTop));
-  boxes.push(clawdCreateBox(0, 0.22, 0,      0.90, 0.08, 0.70, C.belly));
-  boxes.push(clawdCreateBox(0, 0.40, -0.38,  0.60, 0.20, 0.12, C.body));
+  // Ducking: compress Z (height) to ~60%, keeping X/Y same
+  // Original STL Z range: -6 to 90 (96 units)
+  // Ducked: -6 to 51.6 (57.6 units) → multiply Z by 0.6
 
-  // === EYES (retracted, lower) ===
-  boxes.push(clawdCreateBox(-0.16, 0.64, -0.32, 0.08, 0.10, 0.08, C.body));
-  boxes.push(clawdCreateBox(-0.16, 0.72, -0.34, 0.12, 0.11, 0.12, C.eyeWhite));
-  boxes.push(clawdCreateBox(-0.16, 0.72, -0.41, 0.06, 0.07, 0.03, C.pupil));
-  boxes.push(clawdCreateBox( 0.16, 0.64, -0.32, 0.08, 0.10, 0.08, C.body));
-  boxes.push(clawdCreateBox( 0.16, 0.72, -0.34, 0.12, 0.11, 0.12, C.eyeWhite));
-  boxes.push(clawdCreateBox( 0.16, 0.72, -0.41, 0.06, 0.07, 0.03, C.pupil));
+  // === BODY (flattened carapace, uniform color) ===
+  boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
+  // Claw tip protrusions
+  boxes.push(clawdSTLBox(-18, -36, 43, 15, -24, 50, C.claw, 0));
+  boxes.push(clawdSTLBox(-18,  24, 43, 15,  36, 50, C.claw, 0));
 
-  // === MOUTH ===
-  boxes.push(clawdCreateBox(0, 0.28, -0.44, 0.18, 0.06, 0.04, C.mouth));
+  // === EYES (black, protruding from front face) ===
+  boxes.push(clawdSTLBox(-30, -30, 22, -18, -12, 36, C.pupil, 0));
+  boxes.push(clawdSTLBox(-30,  12, 22, -18,  30, 36, C.pupil, 0));
 
-  // === CLAWS (lowered, spread wide) ===
-  boxes.push(clawdCreateBox(-0.62, 0.40, 0,   0.20, 0.15, 0.18, C.claw));
-  boxes.push(clawdCreateBox(-0.75, 0.50, 0,   0.15, 0.22, 0.15, C.claw));
-  boxes.push(clawdCreateBox(-0.82, 0.66, -0.02, 0.20, 0.07, 0.12, C.claw));
-  boxes.push(clawdCreateBox(-0.82, 0.56, -0.02, 0.20, 0.07, 0.12, C.claw));
+  // === LEGS (orange, tucked under when ducking) ===
+  var legSwing = Math.sin((frame / 8) * Math.PI * 2) * 3;
+  boxes.push(clawdSTLBox(-18, -48, -6 + legSwing, -6, -36, 8 + legSwing, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  12, -6 + legSwing, -6,  24, 8 + legSwing, C.body, 0));
+  boxes.push(clawdSTLBox( -6, -24, -6 - legSwing,  6, -12, 8 - legSwing, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  36, -6 - legSwing,  6,  48, 8 - legSwing, C.body, 0));
 
-  boxes.push(clawdCreateBox( 0.62, 0.40, 0,   0.20, 0.15, 0.18, C.claw));
-  boxes.push(clawdCreateBox( 0.75, 0.50, 0,   0.15, 0.22, 0.15, C.claw));
-  boxes.push(clawdCreateBox( 0.82, 0.66, -0.02, 0.20, 0.07, 0.12, C.claw));
-  boxes.push(clawdCreateBox( 0.82, 0.56, -0.02, 0.20, 0.07, 0.12, C.claw));
-
-  // === LEGS (spread wider, shorter) ===
-  // Front pair
-  boxes.push(clawdCreateBox(-0.45, 0.18 + legA, -0.28, 0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.54, 0.07 + legA, -0.28, 0.10, 0.12, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.45, 0.18 + legA, -0.28, 0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.54, 0.07 + legA, -0.28, 0.10, 0.12, 0.10, C.leg));
-
-  // Middle pair
-  boxes.push(clawdCreateBox(-0.50, 0.18 + legB, 0,     0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.58, 0.07 + legB, 0,     0.10, 0.12, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.50, 0.18 + legB, 0,     0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.58, 0.07 + legB, 0,     0.10, 0.12, 0.10, C.leg));
-
-  // Back pair
-  boxes.push(clawdCreateBox(-0.45, 0.18 + legA, 0.28,  0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.54, 0.07 + legA, 0.28,  0.10, 0.12, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.45, 0.18 + legA, 0.28,  0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.54, 0.07 + legA, 0.28,  0.10, 0.12, 0.10, C.leg));
+  // === CLAWS (lower, spread wider) ===
+  boxes.push(clawdSTLBox(-18, -78, 22, -6, -48, 36, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18, -78, 36, -6, -48, 43, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 22, -6,  78, 36, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 36, -6,  78, 43, C.claw, clawBob));
 
   return clawdMergeBoxes(boxes);
 }
@@ -2551,9 +2536,11 @@ load_manager.set_loader('dyno_band', ['dyno'], function() {
   load_manager.set_status('dyno_band', true);
   player.setPlayerFrames(frames, true);
 });
+
 /**
  * Clawd the Crab - Death Frames
  * "wow" = standing death, "wow-down" = ducking death
+ * Based on STL geometry
  */
 
 function clawdBuildDeathFrame(isDucking) {
@@ -2561,98 +2548,54 @@ function clawdBuildDeathFrame(isDucking) {
   var boxes = [];
 
   if (!isDucking) {
-    // === STANDING DEATH: knocked back, claws up in surprise ===
+    // === STANDING DEATH ===
 
-    // Body (tilted back slightly - shift top back, bottom forward)
-    boxes.push(clawdCreateBox(0, 0.68, 0.05,   1.0, 0.50, 0.80, C.body));
-    boxes.push(clawdCreateBox(0, 0.96, 0.08,   0.70, 0.15, 0.55, C.shellTop));
-    boxes.push(clawdCreateBox(0, 0.40, 0.02,   0.75, 0.12, 0.55, C.belly));
-    boxes.push(clawdCreateBox(0, 0.70, -0.28,  0.55, 0.30, 0.12, C.body));
+    // Body (uniform color)
+    boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, 0));
+    // Claw tips
+    boxes.push(clawdSTLBox(-18, -36, 66, 15, -24, 78, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  24, 66, 15,  36, 78, C.claw, 0));
 
-    // Eyes (wide, surprised - larger eyeballs, pupils up)
-    boxes.push(clawdCreateBox(-0.18, 1.10, -0.25, 0.08, 0.20, 0.08, C.body));
-    boxes.push(clawdCreateBox(-0.18, 1.26, -0.28, 0.15, 0.15, 0.15, C.eyeWhite));
-    boxes.push(clawdCreateBox(-0.18, 1.28, -0.37, 0.06, 0.06, 0.03, C.pupil));
-    boxes.push(clawdCreateBox( 0.18, 1.10, -0.25, 0.08, 0.20, 0.08, C.body));
-    boxes.push(clawdCreateBox( 0.18, 1.26, -0.28, 0.15, 0.15, 0.15, C.eyeWhite));
-    boxes.push(clawdCreateBox( 0.18, 1.28, -0.37, 0.06, 0.06, 0.03, C.pupil));
+    // Eyes (black, protruding from front face)
+    boxes.push(clawdSTLBox(-30, -30, 42, -18, -12, 60, C.pupil, 0));
+    boxes.push(clawdSTLBox(-30,  12, 42, -18,  30, 60, C.pupil, 0));
 
-    // Mouth (open wide - surprised)
-    boxes.push(clawdCreateBox(0, 0.52, -0.38, 0.22, 0.10, 0.06, C.mouth));
+    // Legs (orange)
+    boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 18, C.body, 0));
+    boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 18, C.body, 0));
+    boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 18, C.body, 0));
+    boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 18, C.body, 0));
 
-    // Claws (raised high, spread in surprise)
-    boxes.push(clawdCreateBox(-0.60, 0.75, 0,    0.20, 0.18, 0.18, C.claw));
-    boxes.push(clawdCreateBox(-0.72, 1.10, 0,    0.15, 0.48, 0.15, C.claw));
-    boxes.push(clawdCreateBox(-0.80, 1.42, -0.02, 0.24, 0.09, 0.13, C.claw));
-    boxes.push(clawdCreateBox(-0.80, 1.30, -0.02, 0.24, 0.09, 0.13, C.claw));
-
-    boxes.push(clawdCreateBox( 0.60, 0.75, 0,    0.20, 0.18, 0.18, C.claw));
-    boxes.push(clawdCreateBox( 0.72, 1.10, 0,    0.15, 0.48, 0.15, C.claw));
-    boxes.push(clawdCreateBox( 0.80, 1.42, -0.02, 0.24, 0.09, 0.13, C.claw));
-    boxes.push(clawdCreateBox( 0.80, 1.30, -0.02, 0.24, 0.09, 0.13, C.claw));
-
-    // Legs (splayed out, limp)
-    boxes.push(clawdCreateBox(-0.40, 0.28, -0.28, 0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.50, 0.12, -0.32, 0.10, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.40, 0.28, -0.28, 0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.50, 0.12, -0.32, 0.10, 0.16, 0.10, C.leg));
-
-    boxes.push(clawdCreateBox(-0.45, 0.28, 0,     0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.55, 0.12, 0,     0.10, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.45, 0.28, 0,     0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.55, 0.12, 0,     0.10, 0.16, 0.10, C.leg));
-
-    boxes.push(clawdCreateBox(-0.40, 0.28, 0.28,  0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.50, 0.12, 0.32,  0.10, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.40, 0.28, 0.28,  0.16, 0.16, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.50, 0.12, 0.32,  0.10, 0.16, 0.10, C.leg));
+    // Claws raised higher (surprise!)
+    boxes.push(clawdSTLBox(-18, -72, 60, -6, -48, 72, C.claw, 0));
+    boxes.push(clawdSTLBox(-18, -72, 72, -6, -48, 84, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  48, 60, -6,  72, 72, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  48, 72, -6,  72, 84, C.claw, 0));
 
   } else {
-    // === DUCKING DEATH: flattened and knocked over ===
+    // === DUCKING DEATH ===
 
-    // Body (very flat)
-    boxes.push(clawdCreateBox(0, 0.35, 0.05,   1.20, 0.25, 0.95, C.body));
-    boxes.push(clawdCreateBox(0, 0.50, 0.05,   0.85, 0.08, 0.70, C.shellTop));
-    boxes.push(clawdCreateBox(0, 0.20, 0.02,   0.95, 0.08, 0.70, C.belly));
-    boxes.push(clawdCreateBox(0, 0.36, -0.40,  0.55, 0.18, 0.10, C.body));
+    // Body (uniform color)
+    boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
+    // Claw tips
+    boxes.push(clawdSTLBox(-18, -36, 43, 15, -24, 50, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  24, 43, 15,  36, 50, C.claw, 0));
 
-    // Eyes (dazed, lower)
-    boxes.push(clawdCreateBox(-0.18, 0.56, -0.34, 0.08, 0.08, 0.08, C.body));
-    boxes.push(clawdCreateBox(-0.18, 0.64, -0.36, 0.14, 0.14, 0.14, C.eyeWhite));
-    boxes.push(clawdCreateBox(-0.18, 0.66, -0.44, 0.06, 0.06, 0.03, C.pupil));
-    boxes.push(clawdCreateBox( 0.18, 0.56, -0.34, 0.08, 0.08, 0.08, C.body));
-    boxes.push(clawdCreateBox( 0.18, 0.64, -0.36, 0.14, 0.14, 0.14, C.eyeWhite));
-    boxes.push(clawdCreateBox( 0.18, 0.66, -0.44, 0.06, 0.06, 0.03, C.pupil));
+    // Eyes (black, protruding from front face)
+    boxes.push(clawdSTLBox(-30, -30, 22, -18, -12, 36, C.pupil, 0));
+    boxes.push(clawdSTLBox(-30,  12, 22, -18,  30, 36, C.pupil, 0));
 
-    // Mouth
-    boxes.push(clawdCreateBox(0, 0.24, -0.46, 0.20, 0.08, 0.04, C.mouth));
+    // Legs (orange)
+    boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 8, C.body, 0));
+    boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 8, C.body, 0));
+    boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 8, C.body, 0));
+    boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 8, C.body, 0));
 
-    // Claws (drooping to sides)
-    boxes.push(clawdCreateBox(-0.65, 0.35, 0,   0.20, 0.12, 0.18, C.claw));
-    boxes.push(clawdCreateBox(-0.80, 0.40, 0,   0.15, 0.18, 0.15, C.claw));
-    boxes.push(clawdCreateBox(-0.88, 0.52, -0.02, 0.20, 0.07, 0.12, C.claw));
-    boxes.push(clawdCreateBox(-0.88, 0.42, -0.02, 0.20, 0.07, 0.12, C.claw));
-
-    boxes.push(clawdCreateBox( 0.65, 0.35, 0,   0.20, 0.12, 0.18, C.claw));
-    boxes.push(clawdCreateBox( 0.80, 0.40, 0,   0.15, 0.18, 0.15, C.claw));
-    boxes.push(clawdCreateBox( 0.88, 0.52, -0.02, 0.20, 0.07, 0.12, C.claw));
-    boxes.push(clawdCreateBox( 0.88, 0.42, -0.02, 0.20, 0.07, 0.12, C.claw));
-
-    // Legs (spread flat)
-    boxes.push(clawdCreateBox(-0.50, 0.14, -0.30, 0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.60, 0.06, -0.34, 0.10, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.50, 0.14, -0.30, 0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.60, 0.06, -0.34, 0.10, 0.10, 0.10, C.leg));
-
-    boxes.push(clawdCreateBox(-0.55, 0.14, 0,     0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.65, 0.06, 0,     0.10, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.55, 0.14, 0,     0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.65, 0.06, 0,     0.10, 0.10, 0.10, C.leg));
-
-    boxes.push(clawdCreateBox(-0.50, 0.14, 0.30,  0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox(-0.60, 0.06, 0.34,  0.10, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.50, 0.14, 0.30,  0.16, 0.10, 0.10, C.leg));
-    boxes.push(clawdCreateBox( 0.60, 0.06, 0.34,  0.10, 0.10, 0.10, C.leg));
+    // Claws drooping
+    boxes.push(clawdSTLBox(-18, -78, 22, -6, -48, 36, C.claw, 0));
+    boxes.push(clawdSTLBox(-18, -78, 36, -6, -48, 43, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  48, 22, -6,  78, 36, C.claw, 0));
+    boxes.push(clawdSTLBox(-18,  48, 36, -6,  78, 43, C.claw, 0));
   }
 
   return clawdMergeBoxes(boxes);
@@ -2680,6 +2623,7 @@ load_manager.set_loader('dyno_death', ['ground'], function() {
   load_manager.set_status('dyno_death', true);
   player.setPlayerDeathFrames(frames);
 });
+
 load_manager.set_loader('cactus', ['ground'], function() {
   let parser = new vox.Parser();
   let ground = scene.getObjectByName('ground');
@@ -2703,7 +2647,8 @@ load_manager.set_loader('cactus', ['ground'], function() {
       }
     });
   }
-});load_manager.set_loader('ptero', ['ground','cactus'], function() {
+});
+load_manager.set_loader('ptero', ['ground','cactus'], function() {
   let parser = new vox.Parser();
   let frames = [];
   let framesCount = 5; // including 0
@@ -2725,6 +2670,7 @@ load_manager.set_loader('cactus', ['ground'], function() {
     });
   }
 });
+
 load_manager.set_loader('rocks', ['ground'], function() {
   let parser = new vox.Parser();
 
@@ -2747,7 +2693,8 @@ load_manager.set_loader('rocks', ['ground'], function() {
       }
     });
   }
-});load_manager.set_loader('flowers', ['ground'], function() {
+});
+load_manager.set_loader('flowers', ['ground'], function() {
   let parser = new vox.Parser();
 
   let flowers = [];
@@ -2769,7 +2716,8 @@ load_manager.set_loader('rocks', ['ground'], function() {
       }
     });
   }
-});load_manager.set_loader('misc', ['ground'], function() {
+});
+load_manager.set_loader('misc', ['ground'], function() {
   let parser = new vox.Parser();
 
   let misc = [];
@@ -2799,6 +2747,7 @@ load_manager.set_loader('rocks', ['ground'], function() {
     });
   }
 });
+
 load_manager.set_loader('t_ground', [], function() {
 	let loader = new THREE.TextureLoader();
 	let textures = {
@@ -2819,6 +2768,7 @@ load_manager.set_loader('t_ground', [], function() {
 	    load_manager.set_status('t_ground', true);
 	});
 });
+
 /**
  * Effects class.
  * Rain, day/night, etc.
@@ -3043,7 +2993,8 @@ class EffectsManager {
 
       
     }
-  }let effects = new EffectsManager();
+  }
+let effects = new EffectsManager();
 
 /**
  * GameManager class.
@@ -3354,7 +3305,8 @@ class GameManager {
 
         this.render();
     }
-}/**
+}
+/**
  * InterfaceManager class.
  * @type {InterfaceManager}
  */
@@ -3394,5 +3346,6 @@ class InterfaceManager {
 
    		game.restart();
     }
-}let game = new GameManager(new InterfaceManager());
+}
+let game = new GameManager(new InterfaceManager());
 game.init(); // init game & interface ASAP

@@ -1,6 +1,7 @@
 /**
  * Clawd the Crab - Ducking Animation (8 frames)
  * Flattened pose when holding DOWN key
+ * Based on STL geometry, squished vertically to ~60%
  */
 
 function clawdBuildDuckFrame(frame) {
@@ -8,55 +9,34 @@ function clawdBuildDuckFrame(frame) {
   var boxes = [];
 
   var phase = (frame / 8) * Math.PI * 2;
-  var legA = Math.sin(phase) * 0.03;
-  var legB = Math.sin(phase + Math.PI) * 0.03;
+  var clawBob = Math.sin(phase) * 0.015;
 
-  // === BODY (flattened) ===
-  boxes.push(clawdCreateBox(0, 0.38, 0,      1.15, 0.30, 0.90, C.body));
-  boxes.push(clawdCreateBox(0, 0.56, 0,      0.85, 0.10, 0.70, C.shellTop));
-  boxes.push(clawdCreateBox(0, 0.22, 0,      0.90, 0.08, 0.70, C.belly));
-  boxes.push(clawdCreateBox(0, 0.40, -0.38,  0.60, 0.20, 0.12, C.body));
+  // Ducking: compress Z (height) to ~60%, keeping X/Y same
+  // Original STL Z range: -6 to 90 (96 units)
+  // Ducked: -6 to 51.6 (57.6 units) → multiply Z by 0.6
 
-  // === EYES (retracted, lower) ===
-  boxes.push(clawdCreateBox(-0.16, 0.64, -0.32, 0.08, 0.10, 0.08, C.body));
-  boxes.push(clawdCreateBox(-0.16, 0.72, -0.34, 0.12, 0.11, 0.12, C.eyeWhite));
-  boxes.push(clawdCreateBox(-0.16, 0.72, -0.41, 0.06, 0.07, 0.03, C.pupil));
-  boxes.push(clawdCreateBox( 0.16, 0.64, -0.32, 0.08, 0.10, 0.08, C.body));
-  boxes.push(clawdCreateBox( 0.16, 0.72, -0.34, 0.12, 0.11, 0.12, C.eyeWhite));
-  boxes.push(clawdCreateBox( 0.16, 0.72, -0.41, 0.06, 0.07, 0.03, C.pupil));
+  // === BODY (flattened carapace, uniform color) ===
+  boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
+  // Claw tip protrusions
+  boxes.push(clawdSTLBox(-18, -36, 43, 15, -24, 50, C.claw, 0));
+  boxes.push(clawdSTLBox(-18,  24, 43, 15,  36, 50, C.claw, 0));
 
-  // === MOUTH ===
-  boxes.push(clawdCreateBox(0, 0.28, -0.44, 0.18, 0.06, 0.04, C.mouth));
+  // === EYES (black, protruding from front face) ===
+  boxes.push(clawdSTLBox(-30, -30, 22, -18, -12, 36, C.pupil, 0));
+  boxes.push(clawdSTLBox(-30,  12, 22, -18,  30, 36, C.pupil, 0));
 
-  // === CLAWS (lowered, spread wide) ===
-  boxes.push(clawdCreateBox(-0.62, 0.40, 0,   0.20, 0.15, 0.18, C.claw));
-  boxes.push(clawdCreateBox(-0.75, 0.50, 0,   0.15, 0.22, 0.15, C.claw));
-  boxes.push(clawdCreateBox(-0.82, 0.66, -0.02, 0.20, 0.07, 0.12, C.claw));
-  boxes.push(clawdCreateBox(-0.82, 0.56, -0.02, 0.20, 0.07, 0.12, C.claw));
+  // === LEGS (orange, tucked under when ducking) ===
+  var legSwing = Math.sin((frame / 8) * Math.PI * 2) * 3;
+  boxes.push(clawdSTLBox(-18, -48, -6 + legSwing, -6, -36, 8 + legSwing, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  12, -6 + legSwing, -6,  24, 8 + legSwing, C.body, 0));
+  boxes.push(clawdSTLBox( -6, -24, -6 - legSwing,  6, -12, 8 - legSwing, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  36, -6 - legSwing,  6,  48, 8 - legSwing, C.body, 0));
 
-  boxes.push(clawdCreateBox( 0.62, 0.40, 0,   0.20, 0.15, 0.18, C.claw));
-  boxes.push(clawdCreateBox( 0.75, 0.50, 0,   0.15, 0.22, 0.15, C.claw));
-  boxes.push(clawdCreateBox( 0.82, 0.66, -0.02, 0.20, 0.07, 0.12, C.claw));
-  boxes.push(clawdCreateBox( 0.82, 0.56, -0.02, 0.20, 0.07, 0.12, C.claw));
-
-  // === LEGS (spread wider, shorter) ===
-  // Front pair
-  boxes.push(clawdCreateBox(-0.45, 0.18 + legA, -0.28, 0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.54, 0.07 + legA, -0.28, 0.10, 0.12, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.45, 0.18 + legA, -0.28, 0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.54, 0.07 + legA, -0.28, 0.10, 0.12, 0.10, C.leg));
-
-  // Middle pair
-  boxes.push(clawdCreateBox(-0.50, 0.18 + legB, 0,     0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.58, 0.07 + legB, 0,     0.10, 0.12, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.50, 0.18 + legB, 0,     0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.58, 0.07 + legB, 0,     0.10, 0.12, 0.10, C.leg));
-
-  // Back pair
-  boxes.push(clawdCreateBox(-0.45, 0.18 + legA, 0.28,  0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox(-0.54, 0.07 + legA, 0.28,  0.10, 0.12, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.45, 0.18 + legA, 0.28,  0.16, 0.14, 0.10, C.leg));
-  boxes.push(clawdCreateBox( 0.54, 0.07 + legA, 0.28,  0.10, 0.12, 0.10, C.leg));
+  // === CLAWS (lower, spread wider) ===
+  boxes.push(clawdSTLBox(-18, -78, 22, -6, -48, 36, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18, -78, 36, -6, -48, 43, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 22, -6,  78, 36, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 36, -6,  78, 43, C.claw, clawBob));
 
   return clawdMergeBoxes(boxes);
 }

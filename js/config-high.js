@@ -3,7 +3,7 @@
  * @type {Object}
  */
 const config = {
-	"base_path": "/",
+	"base_path": window.location.pathname.replace(/\/[^\/]*$/, '/'),
 	"logs": true,
 	"debug": false,
 	"camera": {
