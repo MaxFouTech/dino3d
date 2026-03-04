@@ -84,12 +84,12 @@
 
             scene.add(this.frame);
 
-            // set collision box
-            let geometry = new THREE.BoxGeometry( .5, 1.7, .7 );
+            // set collision box (sized for Clawd the crab)
+            let geometry = new THREE.BoxGeometry( .7, 1.2, .9 );
             let material = new THREE.MeshBasicMaterial( {color: 0x00ff00} );
             this.collisionBox = new THREE.Mesh( geometry, material );
             this.collisionBox.position.x = this.frame.position.x;
-            this.collisionBox.position.y = this.frame.position.y + 1.4;
+            this.collisionBox.position.y = this.frame.position.y + 0.9;
             this.collisionBox.position.z = this.frame.position.z;
             scene.add( this.collisionBox );
 
@@ -118,14 +118,14 @@
             this.collisionBox.scale.y = 1;
             this.collisionBox.scale.z = 1;
             this.collisionBox.position.z = this.frame.position.z;
-            this.collisionBox.position.y = this.frame.position.y + 1.4;
+            this.collisionBox.position.y = this.frame.position.y + 0.9;
         } else {
             // band down
             this.frame.geometry = this.frames_band[this.currentFrame].geometry;
             this.collisionBox.scale.y = 0.5;
-            this.collisionBox.scale.z = 2.5;
-            this.collisionBox.position.z = this.frame.position.z - .5;
-            this.collisionBox.position.y = this.frame.position.y + 0.7;
+            this.collisionBox.scale.z = 2.0;
+            this.collisionBox.position.z = this.frame.position.z - .3;
+            this.collisionBox.position.y = this.frame.position.y + 0.45;
         }
     }
 
@@ -197,17 +197,17 @@
                 this.frame.gravity = this.frame.gravity * 1.1;
                 this.frame.geometry = this.frames_band[this.currentFrame].geometry;
                 this.collisionBox.scale.y = 0.5;
-                this.collisionBox.scale.z = 2.5;
-                this.collisionBox.position.z = this.frame.position.z - .5;
-                this.collisionBox.position.y = this.frame.position.y - 2;
+                this.collisionBox.scale.z = 2.0;
+                this.collisionBox.position.z = this.frame.position.z - .3;
+                this.collisionBox.position.y = this.frame.position.y - 1.5;
             }
 
             this.frame.position.y = this.frame.position.y + this.frame.vel * timeDelta;
             if(input.keys.down.down && !this.block_fall_fast) {
                 // fall fast
-                this.collisionBox.position.y = this.frame.position.y + .8;
+                this.collisionBox.position.y = this.frame.position.y + .5;
             } else {
-                this.collisionBox.position.y = this.frame.position.y + 1.4;
+                this.collisionBox.position.y = this.frame.position.y + 0.9;
             }
             this.frame.vel = this.frame.vel + this.frame.gravity * timeDelta;
 
@@ -230,7 +230,7 @@
                 }
 
                 this.frame.position.y = this.frame.init_y;
-                this.collisionBox.position.y = this.frame.position.y + 1.4;
+                this.collisionBox.position.y = this.frame.position.y + 0.9;
                 input.keys.space.clock.elapsedTime = 0;
             }
         }
