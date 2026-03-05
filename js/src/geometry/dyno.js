@@ -136,8 +136,8 @@ function clawdBuildRunFrame(frame) {
   // Main carapace: STL Y[-48,48] Z[18,90] X[-18,9]
   boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, bodyBob));
   // Claw tip protrusions (wider at Z[66,78])
-  boxes.push(clawdSTLBox(0, -36, 66, 17, -24, 78, C.pupil, bodyBob));
-  boxes.push(clawdSTLBox(0,  24, 66, 17,  36, 78, C.pupil, bodyBob));
+  boxes.push(clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, bodyBob));
+  boxes.push(clawdSTLBox(5,  20, 60, 13,  32, 78, C.pupil, bodyBob));
 
   // === LEGS (rotating at hip, foot swings from ground to 90° back) ===
   // Front pair (legAngleA)
@@ -148,10 +148,64 @@ function clawdBuildRunFrame(frame) {
   boxes.push(clawdLegBox( -6,  36, -6,  6,  48, 18, C.body, legAngleB));
 
   // === CLAWS (side appendages, 2 stacked boxes per side) ===
-  boxes.push(clawdSTLBox(-18, -72, 42, -6, -48, 54, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18, -72, 54, -6, -48, 66, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 42, -6,  72, 54, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 54, -6,  72, 66, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18, -72, 38, -6, -48, 46, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18, -72, 46, -6, -48, 57, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 38, -6,  72, 46, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-18,  48, 46, -6,  72, 57, C.claw, clawBob));
+
+  return clawdMergeBoxes(boxes);
+}
+
+// Create a claw box that rotates around the body attachment (shoulder) pivot
+// isLeft: true for left claw (negative Y side), false for right
+// angle: rotation in radians, positive = down, negative = up
+function clawdClawBox(x1, y1, z1, x2, y2, z2, color, angle, pivotY, pivotZ) {
+  var s = CLAWD_SCALE;
+  var w = Math.abs(y2 - y1) * s;
+  var h = Math.abs(z2 - z1) * s;
+  var d = Math.abs(x2 - x1) * s;
+
+  var centerY = (y1 + y2) / 2;
+  var centerZ = (z1 + z2) / 2;
+  var centerX = (x1 + x2) / 2;
+
+  var geo = new THREE.BoxBufferGeometry(w, h, d);
+  // Translate so pivot is at origin (in game X-Y plane)
+  geo.translate((centerY - pivotY) * s, (centerZ - pivotZ) * s, 0);
+
+  if (angle) {
+    var mat = new THREE.Matrix4();
+    mat.makeRotationZ(angle);
+    geo.applyMatrix(mat);
+  }
+
+  // Move pivot to world position
+  geo.translate(pivotY * s, (pivotZ + 6) * s, (centerX + 1.5) * s);
+  return {geometry: geo, color: color};
+}
+
+// Build a jump frame with claws rotated by clawAngle (positive = down)
+function clawdBuildJumpFrame(clawAngle) {
+  var C = ClawdColors;
+  var boxes = [];
+
+  boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, 0));
+  boxes.push(clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, 0));
+  boxes.push(clawdSTLBox(5,  20, 60, 13,  32, 78, C.pupil, 0));
+
+  // Legs tucked
+  boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 18, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 18, C.body, 0));
+  boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 18, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 18, C.body, 0));
+
+  // Left claw (pivot at Y=-48, Z=47.5) — angle is positive for down
+  var pivotZ = 47.5;
+  boxes.push(clawdClawBox(-18, -72, 38, -6, -48, 46, C.claw, clawAngle, -48, pivotZ));
+  boxes.push(clawdClawBox(-18, -72, 46, -6, -48, 57, C.claw, clawAngle, -48, pivotZ));
+  // Right claw (pivot at Y=48, Z=47.5) — angle is negated for right side
+  boxes.push(clawdClawBox(-18, 48, 38, -6, 72, 46, C.claw, -clawAngle, 48, pivotZ));
+  boxes.push(clawdClawBox(-18, 48, 46, -6, 72, 57, C.claw, -clawAngle, 48, pivotZ));
 
   return clawdMergeBoxes(boxes);
 }
@@ -168,7 +222,14 @@ load_manager.set_loader('dyno', ['ground'], function() {
     frames[i] = mesh;
   }
 
+  // Jump frames: arms rotate down when ascending, up when descending
+  var jumpFrames = {
+    armsDown: clawdBuildJumpFrame(Math.PI / 4),
+    armsUp: clawdBuildJumpFrame(-Math.PI / 4)
+  };
+
   load_manager.set_mesh('dyno', frames);
   load_manager.set_status('dyno', true);
   player.setPlayerFrames(load_manager.get_vox('dyno'));
+  player.jump_frames = jumpFrames;
 });

@@ -14,6 +14,7 @@
       this.clock = new THREE.Clock();
       this.anim_speed = 0.10; // lower is faster
       this.block_fall_fast = false;
+      this.jump_frames = null;
       this.jump = {
           "is_active": false,
           "vel": 15,
@@ -157,6 +158,8 @@
         this.frame.vel = this.jump.vel;
         this.frame.gravity = this.jump.gravity;
         this.frame.boost = false;
+        this.jump.spin_start = this.frame.rotation.y;
+        this.jump.max_y = this.frame.position.y;
         this.nextFrame(true);
 
         audio.play('jump');
@@ -203,8 +206,29 @@
             }
 
             this.frame.position.y = this.frame.position.y + this.frame.vel * timeDelta;
-            // Spin while jumping
-            this.frame.rotation.y += 12 * timeDelta;
+            // Spin while jumping — tied to height for smooth easing
+            if (this.frame.position.y > this.jump.max_y) {
+                this.jump.max_y = this.frame.position.y;
+            }
+            var jumpHeight = this.jump.max_y - this.frame.init_y;
+            if (jumpHeight > 0.01) {
+                var currentHeight = this.frame.position.y - this.frame.init_y;
+                var progress;
+                if (this.frame.vel >= 0) {
+                    progress = (currentHeight / jumpHeight) * 0.5;
+                } else {
+                    progress = 1 - (currentHeight / jumpHeight) * 0.5;
+                }
+                this.frame.rotation.y = this.jump.spin_start + progress * Math.PI * 4;
+            }
+            // Swap arm geometry based on velocity
+            if (this.jump_frames) {
+                if (this.frame.vel >= 0) {
+                    this.frame.geometry = this.jump_frames.armsDown;
+                } else {
+                    this.frame.geometry = this.jump_frames.armsUp;
+                }
+            }
             if(input.keys.down.down && !this.block_fall_fast) {
                 // fall fast
                 this.collisionBox.position.y = this.frame.position.y + .5;
@@ -232,7 +256,7 @@
                 }
 
                 this.frame.position.y = this.frame.init_y;
-                this.frame.rotation.y = Math.PI / 2; // Reset spin to initial facing
+                this.frame.rotation.y = this.jump.spin_start; // Spin completes full rotations
                 this.collisionBox.position.y = this.frame.position.y + 0.9;
                 input.keys.space.clock.elapsedTime = 0;
             }

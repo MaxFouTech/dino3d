@@ -18,8 +18,8 @@ function clawdBuildDuckFrame(frame) {
   // === BODY (flattened carapace, uniform color) ===
   boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
   // Claw tip protrusions
-  boxes.push(clawdSTLBox(0, -36, 43, 17, -24, 50, C.pupil, 0));
-  boxes.push(clawdSTLBox(0,  24, 43, 17,  36, 50, C.pupil, 0));
+  boxes.push(clawdSTLBox(5, -32, 38, 13, -20, 50, C.pupil, 0));
+  boxes.push(clawdSTLBox(5,  20, 38, 13,  32, 50, C.pupil, 0));
 
   // === LEGS (orange, tucked under when ducking) ===
   var legSwing = Math.sin((frame / 8) * Math.PI * 2) * 3;
