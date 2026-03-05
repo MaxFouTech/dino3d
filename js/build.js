@@ -97,6 +97,33 @@
       window.addEventListener('keyup', (e) => {
         setKeyFromKeyCode(e.keyCode, false);
       });
+
+      // Touch support for mobile: swipe up to jump, swipe down to duck
+      let touchStartY = 0;
+      let touchActive = false;
+      const SWIPE_THRESHOLD = 30;
+
+      window.addEventListener('touchstart', (e) => {
+        if (e.target.closest('button, a, #start-screen, #game-restart, #credit-banner')) return;
+        touchStartY = e.touches[0].clientY;
+        touchActive = true;
+      });
+
+      window.addEventListener('touchmove', (e) => {
+        if (!touchActive) return;
+        const deltaY = e.touches[0].clientY - touchStartY;
+        if (deltaY < -SWIPE_THRESHOLD) {
+          setKey('space', true);
+        } else if (deltaY > SWIPE_THRESHOLD) {
+          setKey('down', true);
+        }
+      });
+
+      window.addEventListener('touchend', (e) => {
+        touchActive = false;
+        setKey('space', false);
+        setKey('down', false);
+      });
     }
 
     update() {
