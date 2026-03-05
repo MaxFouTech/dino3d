@@ -15,24 +15,24 @@ function clawdBuildDuckFrame(frame) {
   // Original STL Z range: -6 to 90 (96 units)
   // Ducked: -6 to 51.6 (57.6 units) → multiply Z by 0.6
 
-  // === BODY (flattened carapace, uniform color) ===
+  // === BODY (flattened carapace) ===
   boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
-  // Claw tip protrusions
-  boxes.push(clawdSTLBox(5, -32, 38, 13, -20, 50, C.pupil, 0));
-  boxes.push(clawdSTLBox(5,  20, 38, 13,  32, 50, C.pupil, 0));
+  // Eyes
+  boxes.push(clawdSTLBox(5, -31, 35, 13, -24, 48, C.pupil, 0));
+  boxes.push(clawdSTLBox(5,  24, 35, 13,  31, 48, C.pupil, 0));
 
-  // === LEGS (orange, tucked under when ducking) ===
+  // === LEGS (tucked under when ducking) ===
   var legSwing = Math.sin((frame / 8) * Math.PI * 2) * 3;
-  boxes.push(clawdSTLBox(-18, -48, -6 + legSwing, -6, -36, 8 + legSwing, C.body, 0));
-  boxes.push(clawdSTLBox(-18,  12, -6 + legSwing, -6,  24, 8 + legSwing, C.body, 0));
-  boxes.push(clawdSTLBox( -6, -24, -6 - legSwing,  6, -12, 8 - legSwing, C.body, 0));
-  boxes.push(clawdSTLBox( -6,  36, -6 - legSwing,  6,  48, 8 - legSwing, C.body, 0));
+  boxes.push(clawdSTLBox(-18, -46, -3 + legSwing, -6, -37, 8 + legSwing, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  14, -3 + legSwing, -6,  23, 8 + legSwing, C.body, 0));
+  boxes.push(clawdSTLBox( -6, -22, -3 - legSwing,  6, -13, 8 - legSwing, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  31, -3 - legSwing,  6,  40, 8 - legSwing, C.body, 0));
 
   // === CLAWS (lower, spread wider) ===
-  boxes.push(clawdSTLBox(-18, -78, 22, -6, -48, 36, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18, -78, 36, -6, -48, 43, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 22, -6,  78, 36, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 36, -6,  78, 43, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11, -70, 22, 1, -48, 30, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11, -70, 30, 1, -48, 39, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11,  48, 22, 1,  70, 30, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11,  48, 30, 1,  70, 39, C.claw, clawBob));
 
   return clawdMergeBoxes(boxes);
 }

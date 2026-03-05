@@ -98,22 +98,21 @@ function clawdLegBox(x1, y1, z1, x2, y2, z2, color, angle) {
   var h = Math.abs(z2 - z1) * s;
   var d = Math.abs(x2 - x1) * s;
 
-  var geo = new THREE.BoxBufferGeometry(w, h, d);
-  // Place pivot at top of leg (translate so top edge is at y=0)
-  geo.translate(0, -h / 2, 0);
+  // Extend leg 45% into body
+  var hExtra = h * 0.45;
+  var geo = new THREE.BoxBufferGeometry(w, h + hExtra, d);
+  geo.translate(0, -(h + hExtra) / 2 + hExtra, 0);
 
-  // Rotate around X axis to swing leg backward
   if (angle) {
     var mat = new THREE.Matrix4();
     mat.makeRotationZ(-angle);
     geo.applyMatrix(mat);
   }
 
-  // Move to final position (pivot = top of leg where it meets body)
   var topZ = Math.max(z1, z2);
   geo.translate(
     ((y1 + y2) / 2) * s,
-    (topZ + 6) * s,
+    (topZ + 6) * s + 0.04,
     ((x1 + x2) / 2 + 1.5) * s
   );
 
@@ -128,30 +127,27 @@ function clawdBuildRunFrame(frame) {
   var phase = (frame / 8) * Math.PI * 2;
   var clawBob = Math.sin(phase) * 0.02;
   var bodyBob = Math.sin(phase * 2) * 0.008;
-  // Leg animation: alternating pairs rotate from ground (0°) to 90° back
-  var legAngleA = (Math.sin(phase) * 0.5 + 0.5) * (Math.PI / 2);
-  var legAngleB = (Math.sin(phase + Math.PI) * 0.5 + 0.5) * (Math.PI / 2);
+  // Leg animation: alternating pairs rotate from ground (0°) to 75° back
+  var legAngleA = (Math.sin(phase) * 0.5 + 0.5) * (75 * Math.PI / 180);
+  var legAngleB = (Math.sin(phase + Math.PI) * 0.5 + 0.5) * (75 * Math.PI / 180);
 
-  // === BODY (from STL: merged into one solid block, uniform color) ===
-  // Main carapace: STL Y[-48,48] Z[18,90] X[-18,9]
+  // === BODY ===
   boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, bodyBob));
-  // Claw tip protrusions (wider at Z[66,78])
-  boxes.push(clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, bodyBob));
-  boxes.push(clawdSTLBox(5,  20, 60, 13,  32, 78, C.pupil, bodyBob));
+  // Eyes
+  boxes.push(clawdSTLBox(5, -31, 55, 13, -24, 73, C.pupil, bodyBob));
+  boxes.push(clawdSTLBox(5,  24, 55, 13,  31, 73, C.pupil, bodyBob));
 
-  // === LEGS (rotating at hip, foot swings from ground to 90° back) ===
-  // Front pair (legAngleA)
-  boxes.push(clawdLegBox(-18, -48, -6, -6, -36, 18, C.body, legAngleA));
-  boxes.push(clawdLegBox(-18,  12, -6, -6,  24, 18, C.body, legAngleA));
-  // Inner pair (legAngleB - opposite phase)
-  boxes.push(clawdLegBox( -6, -24, -6,  6, -12, 18, C.body, legAngleB));
-  boxes.push(clawdLegBox( -6,  36, -6,  6,  48, 18, C.body, legAngleB));
+  // === LEGS ===
+  boxes.push(clawdLegBox(-18, -46, -3, -6, -37, 18, C.body, legAngleA));
+  boxes.push(clawdLegBox(-18,  14, -3, -6,  23, 18, C.body, legAngleA));
+  boxes.push(clawdLegBox( -6, -22, -3,  6, -13, 18, C.body, legAngleB));
+  boxes.push(clawdLegBox( -6,  31, -3,  6,  40, 18, C.body, legAngleB));
 
-  // === CLAWS (side appendages, 2 stacked boxes per side) ===
-  boxes.push(clawdSTLBox(-18, -72, 38, -6, -48, 46, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18, -72, 46, -6, -48, 57, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 38, -6,  72, 46, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 46, -6,  72, 57, C.claw, clawBob));
+  // === CLAWS ===
+  boxes.push(clawdSTLBox(-11, -65, 38, 1, -48, 46, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11, -65, 46, 1, -48, 55, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11,  48, 38, 1,  65, 46, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11,  48, 46, 1,  65, 55, C.claw, clawBob));
 
   return clawdMergeBoxes(boxes);
 }
@@ -190,22 +186,22 @@ function clawdBuildJumpFrame(clawAngle) {
   var boxes = [];
 
   boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, 0));
-  boxes.push(clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, 0));
-  boxes.push(clawdSTLBox(5,  20, 60, 13,  32, 78, C.pupil, 0));
+  boxes.push(clawdSTLBox(5, -31, 55, 13, -24, 73, C.pupil, 0));
+  boxes.push(clawdSTLBox(5,  24, 55, 13,  31, 73, C.pupil, 0));
 
   // Legs tucked
-  boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 18, C.body, 0));
-  boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 18, C.body, 0));
-  boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 18, C.body, 0));
-  boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 18, C.body, 0));
+  boxes.push(clawdSTLBox(-18, -46, -3, -6, -37, 18, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  14, -3, -6,  23, 18, C.body, 0));
+  boxes.push(clawdSTLBox( -6, -22, -3,  6, -13, 18, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  31, -3,  6,  40, 18, C.body, 0));
 
-  // Left claw (pivot at Y=-48, Z=47.5) — angle is positive for down
-  var pivotZ = 47.5;
-  boxes.push(clawdClawBox(-18, -72, 38, -6, -48, 46, C.claw, clawAngle, -48, pivotZ));
-  boxes.push(clawdClawBox(-18, -72, 46, -6, -48, 57, C.claw, clawAngle, -48, pivotZ));
-  // Right claw (pivot at Y=48, Z=47.5) — angle is negated for right side
-  boxes.push(clawdClawBox(-18, 48, 38, -6, 72, 46, C.claw, -clawAngle, 48, pivotZ));
-  boxes.push(clawdClawBox(-18, 48, 46, -6, 72, 57, C.claw, -clawAngle, 48, pivotZ));
+  // Left claw (pivot at Y=-48, Z=46.5)
+  var pivotZ = 46.5;
+  boxes.push(clawdClawBox(-11, -65, 38, 1, -48, 46, C.claw, clawAngle, -48, pivotZ));
+  boxes.push(clawdClawBox(-11, -65, 46, 1, -48, 55, C.claw, clawAngle, -48, pivotZ));
+  // Right claw (pivot at Y=48, Z=46.5)
+  boxes.push(clawdClawBox(-11, 48, 38, 1, 65, 46, C.claw, -clawAngle, 48, pivotZ));
+  boxes.push(clawdClawBox(-11, 48, 46, 1, 65, 55, C.claw, -clawAngle, 48, pivotZ));
 
   return clawdMergeBoxes(boxes);
 }
