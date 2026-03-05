@@ -140,7 +140,7 @@ class EnemyManager {
 
 		// basic mesh setup
 		mesh.enemy_type = type;
-		mesh.is_text_obstacle = (mesh.geometry.type === 'TextBufferGeometry');
+		mesh.is_text_obstacle = (mesh.geometry.type === 'TextBufferGeometry' || mesh.geometry.isTextObstacle === true);
 		mesh.castShadow = true;
 		if(type == 'cactus' && !mesh.is_text_obstacle) {
 			mesh.rotation.y = -(Math.PI / 2);
