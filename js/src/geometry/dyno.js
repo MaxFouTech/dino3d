@@ -91,6 +91,35 @@ function clawdMergeBoxes(boxes) {
   return merged;
 }
 
+// Create a leg box that rotates around the hip (top edge) pivot
+function clawdLegBox(x1, y1, z1, x2, y2, z2, color, angle) {
+  var s = CLAWD_SCALE;
+  var w = Math.abs(y2 - y1) * s;
+  var h = Math.abs(z2 - z1) * s;
+  var d = Math.abs(x2 - x1) * s;
+
+  var geo = new THREE.BoxBufferGeometry(w, h, d);
+  // Place pivot at top of leg (translate so top edge is at y=0)
+  geo.translate(0, -h / 2, 0);
+
+  // Rotate around X axis to swing leg backward
+  if (angle) {
+    var mat = new THREE.Matrix4();
+    mat.makeRotationZ(-angle);
+    geo.applyMatrix(mat);
+  }
+
+  // Move to final position (pivot = top of leg where it meets body)
+  var topZ = Math.max(z1, z2);
+  geo.translate(
+    ((y1 + y2) / 2) * s,
+    (topZ + 6) * s,
+    ((x1 + x2) / 2 + 1.5) * s
+  );
+
+  return {geometry: geo, color: color};
+}
+
 function clawdBuildRunFrame(frame) {
   var C = ClawdColors;
   var boxes = [];
@@ -99,31 +128,24 @@ function clawdBuildRunFrame(frame) {
   var phase = (frame / 8) * Math.PI * 2;
   var clawBob = Math.sin(phase) * 0.02;
   var bodyBob = Math.sin(phase * 2) * 0.008;
-  // Leg animation: alternating pairs swing forward/back
-  var legSwingA = Math.sin(phase) * 4;       // STL Z units of swing
-  var legSwingB = Math.sin(phase + Math.PI) * 4;
+  // Leg animation: alternating pairs rotate from ground (0°) to 90° back
+  var legAngleA = (Math.sin(phase) * 0.5 + 0.5) * (Math.PI / 2);
+  var legAngleB = (Math.sin(phase + Math.PI) * 0.5 + 0.5) * (Math.PI / 2);
 
   // === BODY (from STL: merged into one solid block, uniform color) ===
   // Main carapace: STL Y[-48,48] Z[18,90] X[-18,9]
   boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, bodyBob));
   // Claw tip protrusions (wider at Z[66,78])
-  boxes.push(clawdSTLBox(-18, -36, 66, 15, -24, 78, C.claw, bodyBob));
-  boxes.push(clawdSTLBox(-18,  24, 66, 15,  36, 78, C.claw, bodyBob));
+  boxes.push(clawdSTLBox(0, -36, 66, 17, -24, 78, C.pupil, bodyBob));
+  boxes.push(clawdSTLBox(0,  24, 66, 17,  36, 78, C.pupil, bodyBob));
 
-  // === EYES (black, protruding from front face) ===
-  // STL X goes further negative than body (body front is X=-18, eyes at X=-30)
-  // so they stick out clearly in front
-  boxes.push(clawdSTLBox(-30, -30, 42, -18, -12, 60, C.pupil, bodyBob));  // left eye
-  boxes.push(clawdSTLBox(-30,  12, 42, -18,  30, 60, C.pupil, bodyBob));  // right eye
-
-  // === LEGS (orange, from STL eye positions, now animated) ===
-  // These are the STL bottom protrusions recolored as orange legs
-  // Front left pair (legSwingA)
-  boxes.push(clawdSTLBox(-18, -48, -6 + legSwingA, -6, -36, 18 + legSwingA, C.body, 0));
-  boxes.push(clawdSTLBox(-18,  12, -6 + legSwingA, -6,  24, 18 + legSwingA, C.body, 0));
-  // Inner pair (legSwingB - opposite phase)
-  boxes.push(clawdSTLBox( -6, -24, -6 + legSwingB,  6, -12, 18 + legSwingB, C.body, 0));
-  boxes.push(clawdSTLBox( -6,  36, -6 + legSwingB,  6,  48, 18 + legSwingB, C.body, 0));
+  // === LEGS (rotating at hip, foot swings from ground to 90° back) ===
+  // Front pair (legAngleA)
+  boxes.push(clawdLegBox(-18, -48, -6, -6, -36, 18, C.body, legAngleA));
+  boxes.push(clawdLegBox(-18,  12, -6, -6,  24, 18, C.body, legAngleA));
+  // Inner pair (legAngleB - opposite phase)
+  boxes.push(clawdLegBox( -6, -24, -6,  6, -12, 18, C.body, legAngleB));
+  boxes.push(clawdLegBox( -6,  36, -6,  6,  48, 18, C.body, legAngleB));
 
   // === CLAWS (side appendages, 2 stacked boxes per side) ===
   boxes.push(clawdSTLBox(-18, -72, 42, -6, -48, 54, C.claw, clawBob));

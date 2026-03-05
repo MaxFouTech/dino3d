@@ -14,12 +14,8 @@ function clawdBuildDeathFrame(isDucking) {
     // Body (uniform color)
     boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, 0));
     // Claw tips
-    boxes.push(clawdSTLBox(-18, -36, 66, 15, -24, 78, C.claw, 0));
-    boxes.push(clawdSTLBox(-18,  24, 66, 15,  36, 78, C.claw, 0));
-
-    // Eyes (black, protruding from front face)
-    boxes.push(clawdSTLBox(-30, -30, 42, -18, -12, 60, C.pupil, 0));
-    boxes.push(clawdSTLBox(-30,  12, 42, -18,  30, 60, C.pupil, 0));
+    boxes.push(clawdSTLBox(0, -36, 66, 17, -24, 78, C.pupil, 0));
+    boxes.push(clawdSTLBox(0,  24, 66, 17,  36, 78, C.pupil, 0));
 
     // Legs (orange)
     boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 18, C.body, 0));
@@ -39,12 +35,8 @@ function clawdBuildDeathFrame(isDucking) {
     // Body (uniform color)
     boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
     // Claw tips
-    boxes.push(clawdSTLBox(-18, -36, 43, 15, -24, 50, C.claw, 0));
-    boxes.push(clawdSTLBox(-18,  24, 43, 15,  36, 50, C.claw, 0));
-
-    // Eyes (black, protruding from front face)
-    boxes.push(clawdSTLBox(-30, -30, 22, -18, -12, 36, C.pupil, 0));
-    boxes.push(clawdSTLBox(-30,  12, 22, -18,  30, 36, C.pupil, 0));
+    boxes.push(clawdSTLBox(0, -36, 43, 17, -24, 50, C.pupil, 0));
+    boxes.push(clawdSTLBox(0,  24, 43, 17,  36, 50, C.pupil, 0));
 
     // Legs (orange)
     boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 8, C.body, 0));

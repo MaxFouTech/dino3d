@@ -203,6 +203,8 @@
             }
 
             this.frame.position.y = this.frame.position.y + this.frame.vel * timeDelta;
+            // Spin while jumping
+            this.frame.rotation.y += 12 * timeDelta;
             if(input.keys.down.down && !this.block_fall_fast) {
                 // fall fast
                 this.collisionBox.position.y = this.frame.position.y + .5;
@@ -230,6 +232,7 @@
                 }
 
                 this.frame.position.y = this.frame.init_y;
+                this.frame.rotation.y = Math.PI / 2; // Reset spin to initial facing
                 this.collisionBox.position.y = this.frame.position.y + 0.9;
                 input.keys.space.clock.elapsedTime = 0;
             }
