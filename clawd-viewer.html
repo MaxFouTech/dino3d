@@ -19,16 +19,35 @@
       background: rgba(0,0,0,0.7); padding: 10px; border-radius: 4px;
       max-width: 400px; white-space: pre-wrap; display: none;
     }
+    #clawd-ref {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #clawd-ref:active { cursor: grabbing; }
+    #clawd-ref img {
+      width: 480px;
+      image-rendering: pixelated;
+      opacity: 0.85;
+      transition: opacity 0.2s;
+    }
+    #clawd-ref:hover img { opacity: 1; }
   </style>
 </head>
 <body>
   <div id="info">
     Drag to rotate &middot; Scroll to zoom<br>
     Left/Right arrows: cycle frames &middot; Space: toggle auto-play<br>
-    Click a block to see its reference
+    Click a block to see its reference<br>
+    T: toggle ASCII ref transparency
   </div>
   <div id="frame-label">Frame 0 / 7</div>
   <div id="block-info"></div>
+  <div id="clawd-ref"><img src="media/clawd-ascii.png" alt="Clawd ASCII" draggable="false"></div>
 
   <script src="libs/three/three.min.js"></script>
   <script src="libs/three/controls/OrbitControls.js"></script>
@@ -78,15 +97,16 @@
       var w = Math.abs(y2 - y1) * s;
       var h = Math.abs(z2 - z1) * s;
       var d = Math.abs(x2 - x1) * s;
-      var geo = new THREE.BoxBufferGeometry(w, h, d);
-      geo.translate(0, -h / 2, 0);
+      var hExtra = h * 0.45;
+      var geo = new THREE.BoxBufferGeometry(w, h + hExtra, d);
+      geo.translate(0, -(h + hExtra) / 2 + hExtra, 0);
       if (angle) {
         var mat = new THREE.Matrix4();
         mat.makeRotationZ(-angle);
         geo.applyMatrix(mat);
       }
       var topZ = Math.max(z1, z2);
-      geo.translate(((y1 + y2) / 2) * s, (topZ + 6) * s, ((x1 + x2) / 2 + 1.5) * s);
+      geo.translate(((y1 + y2) / 2) * s, (topZ + 6) * s + 0.04, ((x1 + x2) / 2 + 1.5) * s);
       return {geometry: geo, color: color};
     }
 
@@ -97,44 +117,44 @@
       var phase = (frame / 8) * Math.PI * 2;
       var clawBob = Math.sin(phase) * 0.02;
       var bodyBob = Math.sin(phase * 2) * 0.008;
-      var legAngleA = (Math.sin(phase) * 0.5 + 0.5) * (Math.PI / 2);
-      var legAngleB = (Math.sin(phase + Math.PI) * 0.5 + 0.5) * (Math.PI / 2);
+      var legAngleA = (Math.sin(phase) * 0.5 + 0.5) * (75 * Math.PI / 180);
+      var legAngleB = (Math.sin(phase + Math.PI) * 0.5 + 0.5) * (75 * Math.PI / 180);
 
       // Body
       boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, bodyBob));
       labels.push('clawdSTLBox(-18, -48, 18, 9, 48, 90, C.body, bodyBob)\n[Main body/carapace]');
 
-      boxes.push(clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, bodyBob));
-      labels.push('clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, bodyBob)\n[Left eye (black)]');
+      boxes.push(clawdSTLBox(5, -31, 55, 13, -24, 73, C.pupil, bodyBob));
+      labels.push('clawdSTLBox(5, -31, 55, 13, -24, 73, C.pupil, bodyBob)\n[Left eye (black)]');
 
-      boxes.push(clawdSTLBox(5,  20, 60, 13,  32, 78, C.pupil, bodyBob));
-      labels.push('clawdSTLBox(5, 20, 60, 13, 32, 78, C.pupil, bodyBob)\n[Right eye (black)]');
+      boxes.push(clawdSTLBox(5,  24, 55, 13,  31, 73, C.pupil, bodyBob));
+      labels.push('clawdSTLBox(5, 24, 55, 13, 31, 73, C.pupil, bodyBob)\n[Right eye (black)]');
 
       // Legs
-      boxes.push(clawdLegBox(-18, -48, -6, -6, -36, 18, C.body, legAngleA));
-      labels.push('clawdLegBox(-18, -48, -6, -6, -36, 18, C.body, legAngleA)\n[Front-left leg]');
+      boxes.push(clawdLegBox(-18, -46, -3, -6, -37, 18, C.body, legAngleA));
+      labels.push('clawdLegBox(-18, -46, -3, -6, -37, 18, C.body, legAngleA)\n[Front-left leg]');
 
-      boxes.push(clawdLegBox(-18,  12, -6, -6,  24, 18, C.body, legAngleA));
-      labels.push('clawdLegBox(-18, 12, -6, -6, 24, 18, C.body, legAngleA)\n[Front-right leg]');
+      boxes.push(clawdLegBox(-18,  14, -3, -6,  23, 18, C.body, legAngleA));
+      labels.push('clawdLegBox(-18, 14, -3, -6, 23, 18, C.body, legAngleA)\n[Front-right leg]');
 
-      boxes.push(clawdLegBox( -6, -24, -6,  6, -12, 18, C.body, legAngleB));
-      labels.push('clawdLegBox(-6, -24, -6, 6, -12, 18, C.body, legAngleB)\n[Inner-left leg]');
+      boxes.push(clawdLegBox( -6, -22, -3,  6, -13, 18, C.body, legAngleB));
+      labels.push('clawdLegBox(-6, -22, -3, 6, -13, 18, C.body, legAngleB)\n[Inner-left leg]');
 
-      boxes.push(clawdLegBox( -6,  36, -6,  6,  48, 18, C.body, legAngleB));
-      labels.push('clawdLegBox(-6, 36, -6, 6, 48, 18, C.body, legAngleB)\n[Inner-right leg]');
+      boxes.push(clawdLegBox( -6,  31, -3,  6,  40, 18, C.body, legAngleB));
+      labels.push('clawdLegBox(-6, 31, -3, 6, 40, 18, C.body, legAngleB)\n[Inner-right leg]');
 
       // Claws
-      boxes.push(clawdSTLBox(-18, -72, 38, -6, -48, 46, C.claw, clawBob));
-      labels.push('clawdSTLBox(-18, -72, 38, -6, -48, 46, C.claw, clawBob)\n[Left claw bottom]');
+      boxes.push(clawdSTLBox(-11, -65, 38, 1, -48, 46, C.claw, clawBob));
+      labels.push('clawdSTLBox(-11, -65, 38, 1, -48, 46, C.claw, clawBob)\n[Left claw bottom]');
 
-      boxes.push(clawdSTLBox(-18, -72, 46, -6, -48, 57, C.claw, clawBob));
-      labels.push('clawdSTLBox(-18, -72, 46, -6, -48, 57, C.claw, clawBob)\n[Left claw top]');
+      boxes.push(clawdSTLBox(-11, -65, 46, 1, -48, 55, C.claw, clawBob));
+      labels.push('clawdSTLBox(-11, -65, 46, 1, -48, 55, C.claw, clawBob)\n[Left claw top]');
 
-      boxes.push(clawdSTLBox(-18,  48, 38, -6,  72, 46, C.claw, clawBob));
-      labels.push('clawdSTLBox(-18, 48, 38, -6, 72, 46, C.claw, clawBob)\n[Right claw bottom]');
+      boxes.push(clawdSTLBox(-11,  48, 38, 1,  65, 46, C.claw, clawBob));
+      labels.push('clawdSTLBox(-11, 48, 38, 1, 65, 46, C.claw, clawBob)\n[Right claw bottom]');
 
-      boxes.push(clawdSTLBox(-18,  48, 46, -6,  72, 57, C.claw, clawBob));
-      labels.push('clawdSTLBox(-18, 48, 46, -6, 72, 57, C.claw, clawBob)\n[Right claw top]');
+      boxes.push(clawdSTLBox(-11,  48, 46, 1,  65, 55, C.claw, clawBob));
+      labels.push('clawdSTLBox(-11, 48, 46, 1, 65, 55, C.claw, clawBob)\n[Right claw top]');
 
       return { boxes: boxes, labels: labels };
     }
@@ -265,6 +285,44 @@
       renderer.render(scene, camera);
     }
     animate();
+
+    // Toggle ASCII ref transparency with T key
+    (function() {
+      var refImg = document.querySelector('#clawd-ref img');
+      var transparent = false;
+      document.addEventListener('keydown', function(e) {
+        if (e.code === 'KeyT') {
+          transparent = !transparent;
+          refImg.style.opacity = transparent ? 0.3 : 0.85;
+          refImg.style.filter = transparent ? 'drop-shadow(0 0 3px #0f0)' : 'none';
+        }
+      });
+    })();
+
+    // Draggable Clawd reference image
+    (function() {
+      var ref = document.getElementById('clawd-ref');
+      var dragging = false, offsetX, offsetY;
+
+      ref.addEventListener('mousedown', function(e) {
+        dragging = true;
+        offsetX = e.clientX - ref.offsetLeft;
+        offsetY = e.clientY - ref.offsetTop;
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        ref.style.left = (e.clientX - offsetX) + 'px';
+        ref.style.top = (e.clientY - offsetY) + 'px';
+        ref.style.right = 'auto';
+        ref.style.bottom = 'auto';
+      });
+
+      document.addEventListener('mouseup', function() {
+        dragging = false;
+      });
+    })();
   </script>
 </body>
 </html>
