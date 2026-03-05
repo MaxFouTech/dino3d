@@ -140,10 +140,11 @@ class EnemyManager {
 
 		// basic mesh setup
 		mesh.enemy_type = type;
+		mesh.is_text_obstacle = (mesh.geometry.type === 'TextBufferGeometry');
 		mesh.castShadow = true;
-		if(type == 'cactus') {
+		if(type == 'cactus' && !mesh.is_text_obstacle) {
 			mesh.rotation.y = -(Math.PI / 2);
-		} else {
+		} else if(type != 'cactus') {
 			// ptero
 			mesh.current_frame = rand;
 		}
@@ -208,9 +209,11 @@ class EnemyManager {
 		              this.config.x_random_range.cactus[0]
 		            );
 
-		            // random y rotation
-					let yRandomRotate = this.random(this.config.y_random_rotate.cactus[0], this.config.y_random_rotate.cactus[1]);
-					enemiesGroup[i].rotateY(THREE.Math.degToRad(yRandomRotate));
+		            // random y rotation (skip for text obstacles so they face the player)
+					if(!enemiesGroup[i].is_text_obstacle) {
+						let yRandomRotate = this.random(this.config.y_random_rotate.cactus[0], this.config.y_random_rotate.cactus[1]);
+						enemiesGroup[i].rotateY(THREE.Math.degToRad(yRandomRotate));
+					}
 
 					// position Z
 					let zRand = this.get_z('cactus');
