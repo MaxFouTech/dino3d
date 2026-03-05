@@ -125,6 +125,14 @@
 			text-decoration: underline;
 		}
 
+		/* Context window bar */
+		#context-bar {
+			position: fixed;
+			top: 5%;
+			left: 5%;
+			z-index: 100;
+		}
+
 		/* Fork badge on start screen */
 		#start-screen .fork-credit {
 			font-family: 'Segoe UI', Tahoma, sans-serif;
@@ -173,7 +181,7 @@
 	<div id="preloader" class="hidden"></div>
 
 	<div id="game-restart" class="hidden">
-		<h1>You're absolutely dead</h1>
+		<h1 id="game-over-msg"></h1>
 		<img src="media/repeat.png">
 	</div>
 

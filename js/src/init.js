@@ -22,6 +22,7 @@ let input = new InputManager();
 let audio = new AudioManager();
 let enemy = new EnemyManager();
 let score = new ScoreManager();
+let context = new ContextManager();
 
 const renderer = new THREE.WebGLRenderer({
 	antialias: config.renderer.antialias,

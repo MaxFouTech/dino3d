@@ -4,6 +4,7 @@
 //= audio_manager.js
 //= enemy_manager.js
 //= score_manager.js
+//= context_manager.js
 //= init.js
 //= camera_controls.js
 //= camera.js

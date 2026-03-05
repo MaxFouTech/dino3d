@@ -87,10 +87,13 @@ class GameManager {
 		this.isPlaying = true;
 
 		// set running speed (def 13)
-		enemy.increase_velocity(15, true);
+		enemy.increase_velocity(20, true);
 
         // init score
         score.set(0);
+
+        // init context window
+        context.init();
 
         // init stuff
         // if(this.isFirstStart) {
@@ -180,7 +183,7 @@ class GameManager {
         }
 	}
 
-    stop() {
+    stop(cause = 'default') {
         if(!this.isPlaying) {return false;}
 
         // stop the loop
@@ -194,7 +197,15 @@ class GameManager {
         // stop stuff
         audio.stop('bg');
 
-        // show restart button
+        // show restart button with cause-appropriate game over message
+        var msgs = {
+            'overloaded': ["You need a pause.", "Hydrate. Then try again."],
+            'limit':      ["Time to take a break."],
+            'compact':    ["Touch grass.", "Go outside. It's nice out.", "Skill issue."],
+            'default':    ["Time to take a break.", "Touch grass.", "Skill issue.", "Go outside. It's nice out.", "Hydrate. Then try again.", "You need a pause."],
+        };
+        var pool = msgs[cause] || msgs['default'];
+        document.getElementById('game-over-msg').textContent = pool[Math.floor(Math.random() * pool.length)];
         this.interface.buttons.restart.classList.remove('hidden');
 
         // play kill sound & frame
@@ -227,7 +238,7 @@ class GameManager {
 
     reset() {
         // reset running speed (def 13)
-        enemy.increase_velocity(13, true);
+        enemy.increase_velocity(18, true);
 
         // reset stuff
         enemy.reset();
@@ -235,6 +246,7 @@ class GameManager {
         score.reset();
         player.reset();
         effects.reset();
+        context.init();
 
         // redraw to remove objects from scene
         this.render();
@@ -275,6 +287,7 @@ class GameManager {
         }
 
         score.update(timeDelta);
+        context.update(timeDelta);
     }
 
     tabVisibilityChanged(state) {

@@ -51,10 +51,10 @@ class EnemyManager {
 			"enable_collisions": true,
 			"max_amount": {
 				"pool": {
-					"cactus": 50,
-					"ptero": 15
+					"cactus": 60,
+					"ptero": 18
 				},
-				"buffer": 10
+				"buffer": 15
 			}, // max ammount of enemy groups
 			"vel": 0, // overall speed of all enemies and other moving elements in-game
 			"initial_z": -50,
@@ -76,7 +76,9 @@ class EnemyManager {
 			"x_random_range": {
 				"cactus": [-.5, .5]
 			},
-			"chance_to_spawn_tail": [100, 25], // tails spawn chances
+			"elevated_chance": 25, // % chance for cactus text to spawn elevated (duckable)
+			"elevated_y_offsets": [1.3, 2.0], // Y offsets for elevated text obstacles
+			"chance_to_spawn_tail": [0, 0], // tails spawn chances (disabled: one word per group)
 			"tail_rescale_rand": [[.6, .9], [.4, .7]], // tails rescale rand
 
 			"ptero_anim_speed": 0.10, // lower is faster
@@ -95,6 +97,9 @@ class EnemyManager {
 				"geometry": []
 			},
 		}
+
+		this.compactMesh = null;
+		this.compactActive = false;
 	}
 
 	hasDuplicates(array) {
@@ -124,15 +129,25 @@ class EnemyManager {
 		for(let i = 0; i < this.config.max_amount.buffer; i++) {
 			this.buffer.push(this.spawn());
 		}
+
+		// init the /compact final boss mesh (separate from pool)
+		this.initCompact();
 	}
 
 	createEnemy(type = 'cactus', tail = false, tail_number = 0) {
 		// get random mesh (within given type)
-		let rand = Math.floor(Math.random() * load_manager.assets[type].mesh.length);
+		// cactus: exclude last index (21 = /compact, spawned separately)
+		let meshCount = load_manager.assets[type].mesh.length;
+		if(type === 'cactus') meshCount--;
+		let rand = Math.floor(Math.random() * meshCount);
 		let mesh = new THREE.Mesh(
 			this.cache[type].geometry[rand],
 			this.cache[type].material[rand]
 		);
+		// tag cactus meshes with their index for obstacle effect lookup
+		if(type === 'cactus') {
+			mesh.userData.cactusIndex = rand;
+		}
 
 		// xbox
 		// mesh.xbox = new THREE.BoxHelper( mesh, 0xffff00 );
@@ -181,7 +196,7 @@ class EnemyManager {
 	}
 
 	spawn() {
-		let rand = this.pool.getRandomKey();
+		let rand = this.getEligibleKey();
 
 		if(rand !== false) {
 			let enemiesGroup = this.pool.getItem(rand);
@@ -192,6 +207,12 @@ class EnemyManager {
 				enemiesGroup[i].position.y = nature.cache.ground.box.max.y + -nature.cache.ground.box.min.y - 2.5;
 
 				if(enemiesGroup[i].enemy_type == 'cactus') {
+
+					// chance to elevate text obstacle so player can duck under
+					if(enemiesGroup[i].is_text_obstacle && i == 0 && Math.floor(Math.random() * 100) < this.config.elevated_chance) {
+						let yIdx = this.random(0, this.config.elevated_y_offsets.length, false);
+						enemiesGroup[i].position.y += this.config.elevated_y_offsets[yIdx];
+					}
 
 					// random scale
 					let rescaleRand = 1;
@@ -311,6 +332,8 @@ class EnemyManager {
 				continue;
 			}
 
+			let hitResult = null;
+
 			// move by Z & detect collisions
 			for(let j = 0; j < e.length; j++) {
 				if(e[j].enemy_type == 'ptero') {
@@ -325,9 +348,6 @@ class EnemyManager {
 					e[j].position.z += this.config.vel * timeDelta;
 				}
 
-				// xbox
-				// e[j].xbox.update();
-
 				/**
 				 * @TODO
 				 * Optimization can be done.
@@ -341,9 +361,38 @@ class EnemyManager {
 					pBox.setFromObject(player.collisionBox);
 
 					if(eBox.intersectsBox(pBox) && e[j].visible) {
-						game.stop();
-						return;
+						hitResult = this.applyObstacleEffect(e[j]);
+						break;
 					}
+				}
+			}
+
+			if(hitResult && hitResult.startsWith('gameover')) {
+				game.stop(hitResult.replace('gameover_', ''));
+				return;
+			} else if(hitResult === 'despawn') {
+				let newEnemy = this.spawn();
+				this.despawn(this.buffer[i]);
+				this.buffer[i] = newEnemy;
+			}
+		}
+
+		// move /compact final boss separately
+		if(this.compactActive && this.compactMesh && this.compactMesh.visible) {
+			this.compactMesh.position.z += this.config.vel * timeDelta;
+
+			if(this.compactMesh.position.z > this.config.remove_z) {
+				// player dodged it
+				this.compactMesh.visible = false;
+				this.compactActive = false;
+			} else if(this.config.enable_collisions) {
+				let eBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
+				eBox.setFromObject(this.compactMesh);
+				let pBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
+				pBox.setFromObject(player.collisionBox);
+				if(eBox.intersectsBox(pBox)) {
+					game.stop('compact');
+					return;
 				}
 			}
 		}
@@ -363,6 +412,110 @@ class EnemyManager {
 		this.pool.reset();
 		this.buffer = [];
 		delete this.buffer.leader;
+
+		// reset compact state
+		if(this.compactMesh) {
+			this.compactMesh.visible = false;
+		}
+		this.compactActive = false;
+	}
+
+	getEligibleKey() {
+		let pct = (typeof context !== 'undefined') ? context.getPercent() : 0;
+
+		let eligible = this.pool.keys.filter(k => {
+			let item = this.pool.getItem(k);
+			let mesh = item[0];
+
+			if(mesh.enemy_type === 'ptero') return true;
+
+			let idx = mesh.userData.cactusIndex;
+			if(idx === undefined || idx === null) return true;
+			if(idx === 6 && pct < 0.80) return false;            // Context low: only at >=80%
+			if(idx >= 15 && idx <= 19 && pct < 0.80) return false; // Yes, clear context: only at >=80%
+			if(idx === 20 && pct < 0.50) return false;             // git commit and push: only at >=50%
+			return true;
+		});
+
+		if(!eligible.length) return false;
+
+		let i = Math.floor(Math.random() * eligible.length);
+		let k = eligible[i];
+		this.pool.keys.splice(this.pool.keys.indexOf(k), 1);
+		return k;
+	}
+
+	applyObstacleEffect(mesh) {
+		if(mesh.enemy_type === 'ptero') return 'gameover_overloaded';
+
+		let idx = mesh.userData.cactusIndex;
+
+		if(idx === 5) return 'gameover_limit'; // 5-hour limit reached
+
+		let effectMap = {
+			0:  () => context.add(9000),
+			1:  () => context.add(9000),
+			2:  () => context.add(9000),
+			3:  () => context.add(9000),
+			4:  () => context.add(60000),
+			6:  () => {},                         // Context low: no impact
+			7:  () => context.add(18000),
+			8:  () => context.add(150000),
+			9:  () => context.set(5000),
+			10: () => context.multiply(2),
+			11: () => this.increase_velocity(5),  // /fast: speed up, no context change
+			12: () => context.add(-20000),
+			13: () => context.add(24000),
+			14: () => context.add(45000),
+			15: () => context.set(5000),
+			16: () => context.set(5000),
+			17: () => context.set(5000),
+			18: () => context.set(5000),
+			19: () => context.set(5000),
+			20: () => context.set(5000),
+		};
+
+		if(effectMap[idx]) effectMap[idx]();
+
+		return 'despawn';
+	}
+
+	initCompact() {
+		if(this.compactMesh) {
+			this.compactMesh.visible = false;
+			return;
+		}
+		// index 21 is /compact (last in cactus array)
+		let lastIdx = load_manager.assets.cactus.mesh.length - 1;
+		let mesh = new THREE.Mesh(
+			this.cache.cactus.geometry[lastIdx],
+			this.cache.cactus.material[lastIdx]
+		);
+		mesh.enemy_type = 'cactus';
+		mesh.is_text_obstacle = true;
+		mesh.userData.obstacleType = 'compact';
+		mesh.userData.cactusIndex = lastIdx;
+		mesh.visible = false;
+		scene.add(mesh);
+		this.compactMesh = mesh;
+	}
+
+	spawnCompact() {
+		if(!this.compactMesh || this.compactActive) return;
+
+		this.compactMesh.position.y = nature.cache.ground.box.max.y + -nature.cache.ground.box.min.y - 2.5;
+		this.compactMesh.position.x = 0;
+
+		if(this.buffer.length) {
+			let last = this.pool.getItem(this.buffer.leader);
+			this.compactMesh.position.z = -(-last[last.length - 1].position.z + this.config.z_distance.cactus * 2);
+		} else {
+			this.compactMesh.position.z = this.config.initial_z;
+		}
+
+		this.compactMesh.scale.set(1, 1, 1);
+		this.compactMesh.visible = true;
+		this.compactActive = true;
 	}
 
 	spawnPteros() {

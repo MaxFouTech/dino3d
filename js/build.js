@@ -93,7 +93,7 @@
         // console.log(e.keyCode);
         setKeyFromKeyCode(e.keyCode, true);
       });
- 
+
       window.addEventListener('keyup', (e) => {
         setKeyFromKeyCode(e.keyCode, false);
       });
@@ -101,7 +101,7 @@
       // Touch support for mobile: swipe up to jump, swipe down to duck
       let touchStartY = 0;
       let touchActive = false;
-      const SWIPE_THRESHOLD = 30;
+      const SWIPE_THRESHOLD = 30; // pixels
 
       window.addEventListener('touchstart', (e) => {
         if (e.target.closest('button, a, #start-screen, #game-restart, #credit-banner')) return;
@@ -113,8 +113,10 @@
         if (!touchActive) return;
         const deltaY = e.touches[0].clientY - touchStartY;
         if (deltaY < -SWIPE_THRESHOLD) {
+          // Swiped up -> jump
           setKey('space', true);
         } else if (deltaY > SWIPE_THRESHOLD) {
+          // Swiped down -> duck (held while finger is down)
           setKey('down', true);
         }
       });
@@ -140,8 +142,7 @@
         }
       }
     }
-  }
-/**
+  }/**
  * Audio class.
  * @type {AudioManager}
  */
@@ -217,8 +218,7 @@ class AudioManager {
     resume(what) {
       this.sounds[what].play();
     }
-  }
-/**
+  }/**
  * Enemy class v4.
  * This enemy manager gererates N number of mesh groups(!) and puts them to pool.
  * And only N of them will be randomly rendered within the buffer.
@@ -271,10 +271,10 @@ class EnemyManager {
 			"enable_collisions": true,
 			"max_amount": {
 				"pool": {
-					"cactus": 50,
-					"ptero": 15
+					"cactus": 60,
+					"ptero": 18
 				},
-				"buffer": 10
+				"buffer": 15
 			}, // max ammount of enemy groups
 			"vel": 0, // overall speed of all enemies and other moving elements in-game
 			"initial_z": -50,
@@ -296,7 +296,9 @@ class EnemyManager {
 			"x_random_range": {
 				"cactus": [-.5, .5]
 			},
-			"chance_to_spawn_tail": [100, 25], // tails spawn chances
+			"elevated_chance": 25, // % chance for cactus text to spawn elevated (duckable)
+			"elevated_y_offsets": [1.3, 2.0], // Y offsets for elevated text obstacles
+			"chance_to_spawn_tail": [0, 0], // tails spawn chances (disabled: one word per group)
 			"tail_rescale_rand": [[.6, .9], [.4, .7]], // tails rescale rand
 
 			"ptero_anim_speed": 0.10, // lower is faster
@@ -315,6 +317,9 @@ class EnemyManager {
 				"geometry": []
 			},
 		}
+
+		this.compactMesh = null;
+		this.compactActive = false;
 	}
 
 	hasDuplicates(array) {
@@ -344,15 +349,25 @@ class EnemyManager {
 		for(let i = 0; i < this.config.max_amount.buffer; i++) {
 			this.buffer.push(this.spawn());
 		}
+
+		// init the /compact final boss mesh (separate from pool)
+		this.initCompact();
 	}
 
 	createEnemy(type = 'cactus', tail = false, tail_number = 0) {
 		// get random mesh (within given type)
-		let rand = Math.floor(Math.random() * load_manager.assets[type].mesh.length);
+		// cactus: exclude last index (21 = /compact, spawned separately)
+		let meshCount = load_manager.assets[type].mesh.length;
+		if(type === 'cactus') meshCount--;
+		let rand = Math.floor(Math.random() * meshCount);
 		let mesh = new THREE.Mesh(
 			this.cache[type].geometry[rand],
 			this.cache[type].material[rand]
 		);
+		// tag cactus meshes with their index for obstacle effect lookup
+		if(type === 'cactus') {
+			mesh.userData.cactusIndex = rand;
+		}
 
 		// xbox
 		// mesh.xbox = new THREE.BoxHelper( mesh, 0xffff00 );
@@ -401,7 +416,7 @@ class EnemyManager {
 	}
 
 	spawn() {
-		let rand = this.pool.getRandomKey();
+		let rand = this.getEligibleKey();
 
 		if(rand !== false) {
 			let enemiesGroup = this.pool.getItem(rand);
@@ -412,6 +427,12 @@ class EnemyManager {
 				enemiesGroup[i].position.y = nature.cache.ground.box.max.y + -nature.cache.ground.box.min.y - 2.5;
 
 				if(enemiesGroup[i].enemy_type == 'cactus') {
+
+					// chance to elevate text obstacle so player can duck under
+					if(enemiesGroup[i].is_text_obstacle && i == 0 && Math.floor(Math.random() * 100) < this.config.elevated_chance) {
+						let yIdx = this.random(0, this.config.elevated_y_offsets.length, false);
+						enemiesGroup[i].position.y += this.config.elevated_y_offsets[yIdx];
+					}
 
 					// random scale
 					let rescaleRand = 1;
@@ -531,6 +552,8 @@ class EnemyManager {
 				continue;
 			}
 
+			let hitResult = null;
+
 			// move by Z & detect collisions
 			for(let j = 0; j < e.length; j++) {
 				if(e[j].enemy_type == 'ptero') {
@@ -545,9 +568,6 @@ class EnemyManager {
 					e[j].position.z += this.config.vel * timeDelta;
 				}
 
-				// xbox
-				// e[j].xbox.update();
-
 				/**
 				 * @TODO
 				 * Optimization can be done.
@@ -561,9 +581,38 @@ class EnemyManager {
 					pBox.setFromObject(player.collisionBox);
 
 					if(eBox.intersectsBox(pBox) && e[j].visible) {
-						game.stop();
-						return;
+						hitResult = this.applyObstacleEffect(e[j]);
+						break;
 					}
+				}
+			}
+
+			if(hitResult && hitResult.startsWith('gameover')) {
+				game.stop(hitResult.replace('gameover_', ''));
+				return;
+			} else if(hitResult === 'despawn') {
+				let newEnemy = this.spawn();
+				this.despawn(this.buffer[i]);
+				this.buffer[i] = newEnemy;
+			}
+		}
+
+		// move /compact final boss separately
+		if(this.compactActive && this.compactMesh && this.compactMesh.visible) {
+			this.compactMesh.position.z += this.config.vel * timeDelta;
+
+			if(this.compactMesh.position.z > this.config.remove_z) {
+				// player dodged it
+				this.compactMesh.visible = false;
+				this.compactActive = false;
+			} else if(this.config.enable_collisions) {
+				let eBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
+				eBox.setFromObject(this.compactMesh);
+				let pBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
+				pBox.setFromObject(player.collisionBox);
+				if(eBox.intersectsBox(pBox)) {
+					game.stop('compact');
+					return;
 				}
 			}
 		}
@@ -583,6 +632,110 @@ class EnemyManager {
 		this.pool.reset();
 		this.buffer = [];
 		delete this.buffer.leader;
+
+		// reset compact state
+		if(this.compactMesh) {
+			this.compactMesh.visible = false;
+		}
+		this.compactActive = false;
+	}
+
+	getEligibleKey() {
+		let pct = (typeof context !== 'undefined') ? context.getPercent() : 0;
+
+		let eligible = this.pool.keys.filter(k => {
+			let item = this.pool.getItem(k);
+			let mesh = item[0];
+
+			if(mesh.enemy_type === 'ptero') return true;
+
+			let idx = mesh.userData.cactusIndex;
+			if(idx === undefined || idx === null) return true;
+			if(idx === 6 && pct < 0.80) return false;            // Context low: only at >=80%
+			if(idx >= 15 && idx <= 19 && pct < 0.80) return false; // Yes, clear context: only at >=80%
+			if(idx === 20 && pct < 0.50) return false;             // git commit and push: only at >=50%
+			return true;
+		});
+
+		if(!eligible.length) return false;
+
+		let i = Math.floor(Math.random() * eligible.length);
+		let k = eligible[i];
+		this.pool.keys.splice(this.pool.keys.indexOf(k), 1);
+		return k;
+	}
+
+	applyObstacleEffect(mesh) {
+		if(mesh.enemy_type === 'ptero') return 'gameover_overloaded';
+
+		let idx = mesh.userData.cactusIndex;
+
+		if(idx === 5) return 'gameover_limit'; // 5-hour limit reached
+
+		let effectMap = {
+			0:  () => context.add(9000),
+			1:  () => context.add(9000),
+			2:  () => context.add(9000),
+			3:  () => context.add(9000),
+			4:  () => context.add(60000),
+			6:  () => {},                         // Context low: no impact
+			7:  () => context.add(18000),
+			8:  () => context.add(150000),
+			9:  () => context.set(5000),
+			10: () => context.multiply(2),
+			11: () => this.increase_velocity(5),  // /fast: speed up, no context change
+			12: () => context.add(-20000),
+			13: () => context.add(24000),
+			14: () => context.add(45000),
+			15: () => context.set(5000),
+			16: () => context.set(5000),
+			17: () => context.set(5000),
+			18: () => context.set(5000),
+			19: () => context.set(5000),
+			20: () => context.set(5000),
+		};
+
+		if(effectMap[idx]) effectMap[idx]();
+
+		return 'despawn';
+	}
+
+	initCompact() {
+		if(this.compactMesh) {
+			this.compactMesh.visible = false;
+			return;
+		}
+		// index 21 is /compact (last in cactus array)
+		let lastIdx = load_manager.assets.cactus.mesh.length - 1;
+		let mesh = new THREE.Mesh(
+			this.cache.cactus.geometry[lastIdx],
+			this.cache.cactus.material[lastIdx]
+		);
+		mesh.enemy_type = 'cactus';
+		mesh.is_text_obstacle = true;
+		mesh.userData.obstacleType = 'compact';
+		mesh.userData.cactusIndex = lastIdx;
+		mesh.visible = false;
+		scene.add(mesh);
+		this.compactMesh = mesh;
+	}
+
+	spawnCompact() {
+		if(!this.compactMesh || this.compactActive) return;
+
+		this.compactMesh.position.y = nature.cache.ground.box.max.y + -nature.cache.ground.box.min.y - 2.5;
+		this.compactMesh.position.x = 0;
+
+		if(this.buffer.length) {
+			let last = this.pool.getItem(this.buffer.leader);
+			this.compactMesh.position.z = -(-last[last.length - 1].position.z + this.config.z_distance.cactus * 2);
+		} else {
+			this.compactMesh.position.z = this.config.initial_z;
+		}
+
+		this.compactMesh.scale.set(1, 1, 1);
+		this.compactMesh.visible = true;
+		this.compactActive = true;
 	}
 
 	spawnPteros() {
@@ -707,8 +860,7 @@ class EnemyManager {
 	        this.pteroNextFrame();
 	    }
     }
-}
-/**
+}/**
  * Score class.
  * @type {ScoreManager}
  */
@@ -843,7 +995,112 @@ class ScoreManager {
       this.ctx.fillStyle = 'rgba(106,133,145,1)';
       this.ctx.fillText(text, 0, 60);
     }
-  }
+  }/**
+ * Context Window Manager.
+ * Tracks token usage from 5k to 200k and renders the context bar UI.
+ */
+
+class ContextManager {
+    constructor() {
+        this.tokens = 5000;
+        this.max = 200000;
+        this.canvas = null;
+        this.ctx = null;
+        this.compactSpawned = false;
+    }
+
+    init() {
+        this.tokens = 5000;
+        this.compactSpawned = false;
+
+        if (!this.canvas) {
+            this.canvas = document.createElement('canvas');
+            this.canvas.id = 'context-bar';
+            this.canvas.width = 320;
+            this.canvas.height = 50;
+            document.body.appendChild(this.canvas);
+            this.ctx = this.canvas.getContext('2d');
+        }
+
+        this.render();
+    }
+
+    add(amount) {
+        this.tokens += amount;
+        this._clampAndCheck();
+    }
+
+    set(amount) {
+        this.tokens = amount;
+        // significant drop (reset) — cancel compact so it can re-trigger if needed
+        if(amount < this.max * 0.5) {
+            this.compactSpawned = false;
+            if(typeof enemy !== 'undefined' && enemy.compactActive) {
+                enemy.compactActive = false;
+                if(enemy.compactMesh) enemy.compactMesh.visible = false;
+            }
+        }
+        this._clampAndCheck();
+    }
+
+    multiply(factor) {
+        this.tokens = this.tokens * factor;
+        this._clampAndCheck();
+    }
+
+    getPercent() {
+        return this.tokens / this.max;
+    }
+
+    _clampAndCheck() {
+        if (this.tokens < 5000) this.tokens = 5000;
+        if (this.tokens >= this.max) {
+            this.tokens = this.max;
+            if (!this.compactSpawned) {
+                this.compactSpawned = true;
+                enemy.spawnCompact();
+            }
+        }
+    }
+
+    update(timeDelta) {
+        // Passive increase: scales with game speed
+        let rate = 200 + (enemy.config.vel * 10);
+        this.add(rate * timeDelta);
+        this.render();
+    }
+
+    render() {
+        if (!this.ctx) return;
+
+        let w = this.canvas.width;
+        let pct = this.getPercent();
+
+        this.ctx.clearRect(0, 0, w, 50);
+
+        // Background bar
+        this.ctx.fillStyle = 'rgba(40, 55, 65, 0.9)';
+        this.ctx.fillRect(0, 0, w, 14);
+
+        // Fill bar color based on level
+        let fillColor;
+        if (pct >= 0.80) {
+            fillColor = 'rgba(180, 60, 60, 1)';
+        } else if (pct >= 0.50) {
+            fillColor = 'rgba(160, 110, 40, 1)';
+        } else {
+            fillColor = 'rgba(106, 133, 145, 1)';
+        }
+        this.ctx.fillStyle = fillColor;
+        this.ctx.fillRect(0, 0, Math.floor(w * pct), 14);
+
+        // Token count text
+        let tokenText = Math.trunc(this.tokens).toLocaleString() + ' / 200,000';
+        this.ctx.font = '10px "Press Start 2P"';
+        this.ctx.fillStyle = 'rgba(106, 133, 145, 1)';
+        this.ctx.fillText(tokenText, 0, 36);
+    }
+}
 /**
  * Initialization of scene, camera, renderer & stats.
  * @type {THREE}
@@ -868,6 +1125,7 @@ let input = new InputManager();
 let audio = new AudioManager();
 let enemy = new EnemyManager();
 let score = new ScoreManager();
+let context = new ContextManager();
 
 const renderer = new THREE.WebGLRenderer({
 	antialias: config.renderer.antialias,
@@ -918,8 +1176,7 @@ if(config.renderer.postprocessing.enable) {
 		saoPass.params.saoBlurDepthCutoff = 0.1;
 		composer.addPass( saoPass );
 	}
-}
-/**
+}/**
  * Controls initialization.
  * @type {THREE.MapControls}
  */
@@ -935,8 +1192,7 @@ if(config.camera.controls) {
 	controls.maxDistance = 100;
 
 	controls.maxPolarAngle = Math.PI / 2;
-}
-/**
+}/**
  * Camera stuff.
  * @type {PerspectiveCamera}
  */
@@ -986,8 +1242,7 @@ function onWindowResize(){
 
     renderer.setSize( window.innerWidth, window.innerHeight );
 
-}
-/**
+}/**
  * Light stuff.
  * @type {THREE}
  */
@@ -1022,8 +1277,7 @@ scene.add(DLightTargetObject);
 
 if(config.camera.helper) {
 	scene.add(new THREE.CameraHelper(DLight.shadow.camera));
-}
-const nebulaSystem = new Nebula.default();
+}const nebulaSystem = new Nebula.default();
 
 
 function nebulaCreateDynoDustEmitter(spd = 5) {
@@ -1081,7 +1335,6 @@ let dynoDustEmitter = nebulaCreateDynoDustEmitter(4);
 
 nebulaSystem.addEmitter(dynoDustEmitter);
 nebulaSystem.addRenderer(new Nebula.MeshRenderer(scene, THREE));
-
 /**
  * Log class.
  * @type {LogManager}
@@ -1114,8 +1367,7 @@ class LogManager {
       else if(level == 2)
         console.log(['[FATAL] ' + message])
     }
-  }
-let logs = new LogManager();
+  }let logs = new LogManager();
 if(config.logs) {
 	logs.enable();
 }
@@ -1402,8 +1654,7 @@ if(config.logs) {
             }
         }
     }
-  }
-let player = new PlayerManager();
+  }let player = new PlayerManager();
 
 /**
  * Nature class v2.
@@ -2085,8 +2336,7 @@ class NatureManager {
     this.moveMisc(timeDelta);
   }
 
-}
-let nature = new NatureManager();
+}let nature = new NatureManager();
 
 /**
  * Load class.
@@ -2350,8 +2600,7 @@ class LoadManager {
 
       return Math.floor((100 * loaded) / total);
     }
-  }
-let load_manager = new LoadManager(); // start loading assets ASAP
+  }let load_manager = new LoadManager(); // start loading assets ASAP
 /**
  * Scene assets.
  */
@@ -2368,8 +2617,7 @@ load_manager.set_loader('ground', [], function() {
     load_manager.set_vox('ground', builder);
     load_manager.set_status('ground', true);
   });
-});
-load_manager.set_loader('ground_bg', [], function() {
+});load_manager.set_loader('ground_bg', [], function() {
   let parser = new vox.Parser();
 
   parser.parse(config.base_path + 'objects/ground sand solid.vox').then(function(voxelData) {
@@ -2381,8 +2629,7 @@ load_manager.set_loader('ground_bg', [], function() {
     load_manager.set_vox('ground_bg', builder);
     load_manager.set_status('ground_bg', true);
   });
-});
-/**
+});/**
  * Clawd the Crab - Procedural 3D Model (based on clawd_large.stl)
  * Replaces the T-Rex with Claude Code's crab mascot
  *
@@ -2482,22 +2729,21 @@ function clawdLegBox(x1, y1, z1, x2, y2, z2, color, angle) {
   var h = Math.abs(z2 - z1) * s;
   var d = Math.abs(x2 - x1) * s;
 
-  var geo = new THREE.BoxBufferGeometry(w, h, d);
-  // Place pivot at top of leg (translate so top edge is at y=0)
-  geo.translate(0, -h / 2, 0);
+  // Extend leg 45% into body
+  var hExtra = h * 0.45;
+  var geo = new THREE.BoxBufferGeometry(w, h + hExtra, d);
+  geo.translate(0, -(h + hExtra) / 2 + hExtra, 0);
 
-  // Rotate around X axis to swing leg backward
   if (angle) {
     var mat = new THREE.Matrix4();
     mat.makeRotationZ(-angle);
     geo.applyMatrix(mat);
   }
 
-  // Move to final position (pivot = top of leg where it meets body)
   var topZ = Math.max(z1, z2);
   geo.translate(
     ((y1 + y2) / 2) * s,
-    (topZ + 6) * s,
+    (topZ + 6) * s + 0.04,
     ((x1 + x2) / 2 + 1.5) * s
   );
 
@@ -2512,35 +2758,34 @@ function clawdBuildRunFrame(frame) {
   var phase = (frame / 8) * Math.PI * 2;
   var clawBob = Math.sin(phase) * 0.02;
   var bodyBob = Math.sin(phase * 2) * 0.008;
-  // Leg animation: alternating pairs rotate from ground (0°) to 90° back
-  var legAngleA = (Math.sin(phase) * 0.5 + 0.5) * (Math.PI / 2);
-  var legAngleB = (Math.sin(phase + Math.PI) * 0.5 + 0.5) * (Math.PI / 2);
+  // Leg animation: alternating pairs rotate from ground (0°) to 75° back
+  var legAngleA = (Math.sin(phase) * 0.5 + 0.5) * (75 * Math.PI / 180);
+  var legAngleB = (Math.sin(phase + Math.PI) * 0.5 + 0.5) * (75 * Math.PI / 180);
 
-  // === BODY (from STL: merged into one solid block, uniform color) ===
-  // Main carapace: STL Y[-48,48] Z[18,90] X[-18,9]
+  // === BODY ===
   boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, bodyBob));
-  // Claw tip protrusions (wider at Z[66,78])
-  boxes.push(clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, bodyBob));
-  boxes.push(clawdSTLBox(5,  20, 60, 13,  32, 78, C.pupil, bodyBob));
+  // Eyes
+  boxes.push(clawdSTLBox(5, -31, 55, 13, -24, 73, C.pupil, bodyBob));
+  boxes.push(clawdSTLBox(5,  24, 55, 13,  31, 73, C.pupil, bodyBob));
 
-  // === LEGS (rotating at hip, foot swings from ground to 90° back) ===
-  // Front pair (legAngleA)
-  boxes.push(clawdLegBox(-18, -48, -6, -6, -36, 18, C.body, legAngleA));
-  boxes.push(clawdLegBox(-18,  12, -6, -6,  24, 18, C.body, legAngleA));
-  // Inner pair (legAngleB - opposite phase)
-  boxes.push(clawdLegBox( -6, -24, -6,  6, -12, 18, C.body, legAngleB));
-  boxes.push(clawdLegBox( -6,  36, -6,  6,  48, 18, C.body, legAngleB));
+  // === LEGS ===
+  boxes.push(clawdLegBox(-18, -46, -3, -6, -37, 18, C.body, legAngleA));
+  boxes.push(clawdLegBox(-18,  14, -3, -6,  23, 18, C.body, legAngleA));
+  boxes.push(clawdLegBox( -6, -22, -3,  6, -13, 18, C.body, legAngleB));
+  boxes.push(clawdLegBox( -6,  31, -3,  6,  40, 18, C.body, legAngleB));
 
-  // === CLAWS (side appendages, 2 stacked boxes per side) ===
-  boxes.push(clawdSTLBox(-18, -72, 38, -6, -48, 46, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18, -72, 46, -6, -48, 57, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 38, -6,  72, 46, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 46, -6,  72, 57, C.claw, clawBob));
+  // === CLAWS ===
+  boxes.push(clawdSTLBox(-11, -65, 38, 1, -48, 46, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11, -65, 46, 1, -48, 55, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11,  48, 38, 1,  65, 46, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11,  48, 46, 1,  65, 55, C.claw, clawBob));
 
   return clawdMergeBoxes(boxes);
 }
 
 // Create a claw box that rotates around the body attachment (shoulder) pivot
+// isLeft: true for left claw (negative Y side), false for right
+// angle: rotation in radians, positive = down, negative = up
 function clawdClawBox(x1, y1, z1, x2, y2, z2, color, angle, pivotY, pivotZ) {
   var s = CLAWD_SCALE;
   var w = Math.abs(y2 - y1) * s;
@@ -2552,6 +2797,7 @@ function clawdClawBox(x1, y1, z1, x2, y2, z2, color, angle, pivotY, pivotZ) {
   var centerX = (x1 + x2) / 2;
 
   var geo = new THREE.BoxBufferGeometry(w, h, d);
+  // Translate so pivot is at origin (in game X-Y plane)
   geo.translate((centerY - pivotY) * s, (centerZ - pivotZ) * s, 0);
 
   if (angle) {
@@ -2560,6 +2806,7 @@ function clawdClawBox(x1, y1, z1, x2, y2, z2, color, angle, pivotY, pivotZ) {
     geo.applyMatrix(mat);
   }
 
+  // Move pivot to world position
   geo.translate(pivotY * s, (pivotZ + 6) * s, (centerX + 1.5) * s);
   return {geometry: geo, color: color};
 }
@@ -2570,22 +2817,22 @@ function clawdBuildJumpFrame(clawAngle) {
   var boxes = [];
 
   boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, 0));
-  boxes.push(clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, 0));
-  boxes.push(clawdSTLBox(5,  20, 60, 13,  32, 78, C.pupil, 0));
+  boxes.push(clawdSTLBox(5, -31, 55, 13, -24, 73, C.pupil, 0));
+  boxes.push(clawdSTLBox(5,  24, 55, 13,  31, 73, C.pupil, 0));
 
   // Legs tucked
-  boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 18, C.body, 0));
-  boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 18, C.body, 0));
-  boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 18, C.body, 0));
-  boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 18, C.body, 0));
+  boxes.push(clawdSTLBox(-18, -46, -3, -6, -37, 18, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  14, -3, -6,  23, 18, C.body, 0));
+  boxes.push(clawdSTLBox( -6, -22, -3,  6, -13, 18, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  31, -3,  6,  40, 18, C.body, 0));
 
-  // Left claw (pivot at Y=-48, Z=47.5)
-  var pivotZ = 47.5;
-  boxes.push(clawdClawBox(-18, -72, 38, -6, -48, 46, C.claw, clawAngle, -48, pivotZ));
-  boxes.push(clawdClawBox(-18, -72, 46, -6, -48, 57, C.claw, clawAngle, -48, pivotZ));
-  // Right claw (pivot at Y=48, Z=47.5) — angle negated
-  boxes.push(clawdClawBox(-18, 48, 38, -6, 72, 46, C.claw, -clawAngle, 48, pivotZ));
-  boxes.push(clawdClawBox(-18, 48, 46, -6, 72, 57, C.claw, -clawAngle, 48, pivotZ));
+  // Left claw (pivot at Y=-48, Z=46.5)
+  var pivotZ = 46.5;
+  boxes.push(clawdClawBox(-11, -65, 38, 1, -48, 46, C.claw, clawAngle, -48, pivotZ));
+  boxes.push(clawdClawBox(-11, -65, 46, 1, -48, 55, C.claw, clawAngle, -48, pivotZ));
+  // Right claw (pivot at Y=48, Z=46.5)
+  boxes.push(clawdClawBox(-11, 48, 38, 1, 65, 46, C.claw, -clawAngle, 48, pivotZ));
+  boxes.push(clawdClawBox(-11, 48, 46, 1, 65, 55, C.claw, -clawAngle, 48, pivotZ));
 
   return clawdMergeBoxes(boxes);
 }
@@ -2602,7 +2849,7 @@ load_manager.set_loader('dyno', ['ground'], function() {
     frames[i] = mesh;
   }
 
-  // Jump frames: arms down (ascending) and arms up (descending)
+  // Jump frames: arms rotate down when ascending, up when descending
   var jumpFrames = {
     armsDown: clawdBuildJumpFrame(Math.PI / 4),
     armsUp: clawdBuildJumpFrame(-Math.PI / 4)
@@ -2613,7 +2860,6 @@ load_manager.set_loader('dyno', ['ground'], function() {
   player.setPlayerFrames(load_manager.get_vox('dyno'));
   player.jump_frames = jumpFrames;
 });
-
 /**
  * Clawd the Crab - Ducking Animation (8 frames)
  * Flattened pose when holding DOWN key
@@ -2631,24 +2877,24 @@ function clawdBuildDuckFrame(frame) {
   // Original STL Z range: -6 to 90 (96 units)
   // Ducked: -6 to 51.6 (57.6 units) → multiply Z by 0.6
 
-  // === BODY (flattened carapace, uniform color) ===
+  // === BODY (flattened carapace) ===
   boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
-  // Claw tip protrusions
-  boxes.push(clawdSTLBox(5, -32, 38, 13, -20, 50, C.pupil, 0));
-  boxes.push(clawdSTLBox(5,  20, 38, 13,  32, 50, C.pupil, 0));
+  // Eyes
+  boxes.push(clawdSTLBox(5, -31, 35, 13, -24, 48, C.pupil, 0));
+  boxes.push(clawdSTLBox(5,  24, 35, 13,  31, 48, C.pupil, 0));
 
-  // === LEGS (orange, tucked under when ducking) ===
+  // === LEGS (tucked under when ducking) ===
   var legSwing = Math.sin((frame / 8) * Math.PI * 2) * 3;
-  boxes.push(clawdSTLBox(-18, -48, -6 + legSwing, -6, -36, 8 + legSwing, C.body, 0));
-  boxes.push(clawdSTLBox(-18,  12, -6 + legSwing, -6,  24, 8 + legSwing, C.body, 0));
-  boxes.push(clawdSTLBox( -6, -24, -6 - legSwing,  6, -12, 8 - legSwing, C.body, 0));
-  boxes.push(clawdSTLBox( -6,  36, -6 - legSwing,  6,  48, 8 - legSwing, C.body, 0));
+  boxes.push(clawdSTLBox(-18, -46, -3 + legSwing, -6, -37, 8 + legSwing, C.body, 0));
+  boxes.push(clawdSTLBox(-18,  14, -3 + legSwing, -6,  23, 8 + legSwing, C.body, 0));
+  boxes.push(clawdSTLBox( -6, -22, -3 - legSwing,  6, -13, 8 - legSwing, C.body, 0));
+  boxes.push(clawdSTLBox( -6,  31, -3 - legSwing,  6,  40, 8 - legSwing, C.body, 0));
 
   // === CLAWS (lower, spread wider) ===
-  boxes.push(clawdSTLBox(-18, -78, 22, -6, -48, 36, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18, -78, 36, -6, -48, 43, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 22, -6,  78, 36, C.claw, clawBob));
-  boxes.push(clawdSTLBox(-18,  48, 36, -6,  78, 43, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11, -70, 22, 1, -48, 30, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11, -70, 30, 1, -48, 39, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11,  48, 22, 1,  70, 30, C.claw, clawBob));
+  boxes.push(clawdSTLBox(-11,  48, 30, 1,  70, 39, C.claw, clawBob));
 
   return clawdMergeBoxes(boxes);
 }
@@ -2668,7 +2914,6 @@ load_manager.set_loader('dyno_band', ['dyno'], function() {
   load_manager.set_status('dyno_band', true);
   player.setPlayerFrames(frames, true);
 });
-
 /**
  * Clawd the Crab - Death Frames
  * "wow" = standing death, "wow-down" = ducking death
@@ -2682,44 +2927,44 @@ function clawdBuildDeathFrame(isDucking) {
   if (!isDucking) {
     // === STANDING DEATH ===
 
-    // Body (uniform color)
+    // Body
     boxes.push(clawdSTLBox(-18, -48, 18,  9, 48, 90, C.body, 0));
-    // Claw tips
-    boxes.push(clawdSTLBox(5, -32, 60, 13, -20, 78, C.pupil, 0));
-    boxes.push(clawdSTLBox(5,  20, 60, 13,  32, 78, C.pupil, 0));
+    // Eyes
+    boxes.push(clawdSTLBox(5, -31, 55, 13, -24, 73, C.pupil, 0));
+    boxes.push(clawdSTLBox(5,  24, 55, 13,  31, 73, C.pupil, 0));
 
-    // Legs (orange)
-    boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 18, C.body, 0));
-    boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 18, C.body, 0));
-    boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 18, C.body, 0));
-    boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 18, C.body, 0));
+    // Legs
+    boxes.push(clawdSTLBox(-18, -46, -3, -6, -37, 18, C.body, 0));
+    boxes.push(clawdSTLBox( -6, -22, -3,  6, -13, 18, C.body, 0));
+    boxes.push(clawdSTLBox(-18,  14, -3, -6,  23, 18, C.body, 0));
+    boxes.push(clawdSTLBox( -6,  31, -3,  6,  40, 18, C.body, 0));
 
     // Claws raised higher (surprise!)
-    boxes.push(clawdSTLBox(-18, -72, 60, -6, -48, 72, C.claw, 0));
-    boxes.push(clawdSTLBox(-18, -72, 72, -6, -48, 84, C.claw, 0));
-    boxes.push(clawdSTLBox(-18,  48, 60, -6,  72, 72, C.claw, 0));
-    boxes.push(clawdSTLBox(-18,  48, 72, -6,  72, 84, C.claw, 0));
+    boxes.push(clawdSTLBox(-11, -65, 60, 1, -48, 68, C.claw, 0));
+    boxes.push(clawdSTLBox(-11, -65, 68, 1, -48, 77, C.claw, 0));
+    boxes.push(clawdSTLBox(-11,  48, 60, 1,  65, 68, C.claw, 0));
+    boxes.push(clawdSTLBox(-11,  48, 68, 1,  65, 77, C.claw, 0));
 
   } else {
     // === DUCKING DEATH ===
 
-    // Body (uniform color)
+    // Body
     boxes.push(clawdSTLBox(-18, -48, 8,  9, 48, 58, C.body, 0));
-    // Claw tips
-    boxes.push(clawdSTLBox(5, -32, 38, 13, -20, 50, C.pupil, 0));
-    boxes.push(clawdSTLBox(5,  20, 38, 13,  32, 50, C.pupil, 0));
+    // Eyes
+    boxes.push(clawdSTLBox(5, -31, 35, 13, -24, 48, C.pupil, 0));
+    boxes.push(clawdSTLBox(5,  24, 35, 13,  31, 48, C.pupil, 0));
 
-    // Legs (orange)
-    boxes.push(clawdSTLBox(-18, -48, -6, -6, -36, 8, C.body, 0));
-    boxes.push(clawdSTLBox(-18,  12, -6, -6,  24, 8, C.body, 0));
-    boxes.push(clawdSTLBox( -6, -24, -6,  6, -12, 8, C.body, 0));
-    boxes.push(clawdSTLBox( -6,  36, -6,  6,  48, 8, C.body, 0));
+    // Legs
+    boxes.push(clawdSTLBox(-18, -46, -3, -6, -37, 8, C.body, 0));
+    boxes.push(clawdSTLBox(-18,  14, -3, -6,  23, 8, C.body, 0));
+    boxes.push(clawdSTLBox( -6, -22, -3,  6, -13, 8, C.body, 0));
+    boxes.push(clawdSTLBox( -6,  31, -3,  6,  40, 8, C.body, 0));
 
     // Claws drooping
-    boxes.push(clawdSTLBox(-18, -78, 22, -6, -48, 36, C.claw, 0));
-    boxes.push(clawdSTLBox(-18, -78, 36, -6, -48, 43, C.claw, 0));
-    boxes.push(clawdSTLBox(-18,  48, 22, -6,  78, 36, C.claw, 0));
-    boxes.push(clawdSTLBox(-18,  48, 36, -6,  78, 43, C.claw, 0));
+    boxes.push(clawdSTLBox(-11, -70, 22, 1, -48, 30, C.claw, 0));
+    boxes.push(clawdSTLBox(-11, -70, 30, 1, -48, 39, C.claw, 0));
+    boxes.push(clawdSTLBox(-11,  48, 22, 1,  70, 30, C.claw, 0));
+    boxes.push(clawdSTLBox(-11,  48, 30, 1,  70, 39, C.claw, 0));
   }
 
   return clawdMergeBoxes(boxes);
@@ -2747,14 +2992,9 @@ load_manager.set_loader('dyno_death', ['ground'], function() {
   load_manager.set_status('dyno_death', true);
   player.setPlayerDeathFrames(frames);
 });
-
 load_manager.set_loader('cactus', ['ground'], function() {
-  let parser = new vox.Parser();
-  let ground = scene.getObjectByName('ground');
-
   let cactus = [];
-  let cactusFiles = ['cactus','cactus_tall','cactus_thin','fcactus','fcactus_tall','fcactus_thin'];
-  let totalToLoad = cactusFiles.length + 3; // +3 for 3D text variants
+  let totalToLoad = 22;
   let loadedCount = 0;
 
   function checkAllLoaded() {
@@ -2765,135 +3005,204 @@ load_manager.set_loader('cactus', ['ground'], function() {
     }
   }
 
-  for(let i = 0; i <= cactusFiles.length - 1; i++) {
-    // load all cactuses
-    parser.parse(config.base_path + 'objects/cactus/' + cactusFiles[i] + '.vox').then(function(voxelData) {
-      let builder = new vox.MeshBuilder(voxelData, {voxelSize: .09});
-      let material = new THREE.MeshLambertMaterial();
-      material.map = vox.MeshBuilder.textureFactory.getTexture(voxelData);
-      builder.material = material;
-
-      cactus[i] = builder;
-      checkAllLoaded();
+  // Helper: create a single-line text obstacle
+  function createSingleLine(text, color, size, height) {
+    let geo = new THREE.TextBufferGeometry(text, {
+      font: font,
+      size: size,
+      height: height,
+      curveSegments: 4,
+      bevelEnabled: false
     });
+    geo.center();
+    geo.computeBoundingBox();
+    geo.translate(0, (geo.boundingBox.max.y - geo.boundingBox.min.y) / 2, 0);
+    geo.isTextObstacle = true;
+
+    let mat = new THREE.MeshLambertMaterial({ color: color });
+    return {
+      geometry: geo,
+      material: mat,
+      createMesh: function() { return new THREE.Mesh(this.geometry, this.material); }
+    };
   }
 
-  // Load 3D text "5h Limit" as an additional cactus variant
+  // Helper: create a multi-line text obstacle
+  function createMultiLine(lines, color, lineSize, lineSpacing, height) {
+    let merged = new THREE.Geometry();
+    for (let l = 0; l < lines.length; l++) {
+      let lineGeo = new THREE.TextGeometry(lines[l], {
+        font: font,
+        size: lineSize,
+        height: height,
+        curveSegments: 4,
+        bevelEnabled: false
+      });
+      lineGeo.center();
+      lineGeo.translate(0, (lines.length - 1 - l) * lineSpacing, 0);
+      merged.merge(lineGeo);
+    }
+
+    let geo = new THREE.BufferGeometry().fromGeometry(merged);
+    geo.computeBoundingBox();
+    geo.translate(0, -geo.boundingBox.min.y, 0);
+    geo.isTextObstacle = true;
+
+    let mat = new THREE.MeshLambertMaterial({ color: color });
+    return {
+      geometry: geo,
+      material: mat,
+      createMesh: function() { return new THREE.Mesh(this.geometry, this.material); }
+    };
+  }
+
+  // Helper: create rainbow per-letter text obstacle
+  function createRainbowText(letters, colors, size, height) {
+    let merged = new THREE.Geometry();
+    let xOffset = 0;
+    let spacing = size * 0.05;
+
+    for (let i = 0; i < letters.length; i++) {
+      let letterGeo = new THREE.TextGeometry(letters[i], {
+        font: font,
+        size: size,
+        height: height,
+        curveSegments: 4,
+        bevelEnabled: false
+      });
+      letterGeo.computeBoundingBox();
+      letterGeo.translate(xOffset - letterGeo.boundingBox.min.x, 0, 0);
+      xOffset += (letterGeo.boundingBox.max.x - letterGeo.boundingBox.min.x) + spacing;
+
+      let color = new THREE.Color(colors[i]);
+      for (let f = 0; f < letterGeo.faces.length; f++) {
+        letterGeo.faces[f].vertexColors = [color.clone(), color.clone(), color.clone()];
+      }
+      merged.merge(letterGeo);
+    }
+
+    merged.computeBoundingBox();
+    let centerX = (merged.boundingBox.max.x + merged.boundingBox.min.x) / 2;
+    merged.translate(-centerX, 0, 0);
+
+    let geo = new THREE.BufferGeometry().fromGeometry(merged);
+    geo.computeBoundingBox();
+    geo.translate(0, -geo.boundingBox.min.y, 0);
+    geo.isTextObstacle = true;
+
+    let mat = new THREE.MeshLambertMaterial({ vertexColors: THREE.VertexColors });
+    return {
+      geometry: geo,
+      material: mat,
+      createMesh: function() { return new THREE.Mesh(this.geometry, this.material); }
+    };
+  }
+
+  let font;
+  let fontLoader = new THREE.FontLoader();
+  fontLoader.load(config.base_path + 'libs/three/fonts/helvetiker_bold.typeface.json', function(loadedFont) {
+    font = loadedFont;
+
+    // Orange words
+    cactus[0] = createSingleLine('Mustering\u2026', 0xff8c00, 1.56, 0.4);
+    checkAllLoaded();
+    cactus[1] = createSingleLine('Reticulating\u2026', 0xff8c00, 1.56, 0.4);
+    checkAllLoaded();
+    cactus[2] = createSingleLine('Honking\u2026', 0xff8c00, 1.56, 0.4);
+    checkAllLoaded();
+    cactus[3] = createSingleLine('Vibing\u2026', 0xff8c00, 1.56, 0.4);
+    checkAllLoaded();
+
+    // "You're / absolutely / right" - white, multi-line
+    cactus[4] = createMultiLine(["You're", "absolutely", "right"], 0xffffff, 0.91, 0.85, 0.3);
+    checkAllLoaded();
+
+    // "5-hour limit reached - resets 3am" - red
+    cactus[5] = createSingleLine('5-hour limit reached \u2219 resets 3am', 0xcc3333, 1.17, 0.4);
+    checkAllLoaded();
+
+    // "Context low (0% remaining) / Run /compact" - red, multi-line
+    cactus[6] = createMultiLine(["Context low (0% remaining)", "Run /compact"], 0xcc3333, 0.91, 0.85, 0.3);
+    checkAllLoaded();
+
+    // "Flibbertigibbeting..." - red
+    cactus[7] = createSingleLine('Flibbertigibbeting\u2026', 0xcc3333, 1.82, 0.5);
+    checkAllLoaded();
+
+    // "ultrathink" - rainbow per-letter colors
+    cactus[8] = createRainbowText(
+      ['u','l','t','r','a','t','h','i','n','k'],
+      [0xd5352c, 0xfa8e32, 0xfcc82d, 0x80b23e, 0x1fa0cd, 0x9f2e68, 0xd5332a, 0xf78e32, 0xfdc838, 0x81b33c],
+      1.17, 0.4
+    );
+    checkAllLoaded();
+
+    // Slash commands - white
+    cactus[9] = createSingleLine('/clear', 0xffffff, 0.84, 0.4);       // decreases context
+    checkAllLoaded();
+    cactus[10] = createSingleLine('/extra-usage', 0xffffff, 1.56, 0.4);
+    checkAllLoaded();
+    cactus[11] = createSingleLine('/fast', 0xffffff, 1.56, 0.4);
+    checkAllLoaded();
+    cactus[12] = createSingleLine('/rewind', 0xffffff, 0.84, 0.4);     // decreases context
+    checkAllLoaded();
+    cactus[13] = createSingleLine('/mcp', 0xffffff, 1.56, 0.4);
+    checkAllLoaded();
+    cactus[14] = createSingleLine('/init', 0xffffff, 1.56, 0.4);
+    checkAllLoaded();
+    // "Yes, clear context (x% used)" - 5 variants matching different context levels (decrease context)
+    cactus[15] = createMultiLine(["Yes, clear context (80% used)", "and auto-accept edits"], 0xffffff, 0.49, 0.85, 0.3);
+    checkAllLoaded();
+    cactus[16] = createMultiLine(["Yes, clear context (85% used)", "and auto-accept edits"], 0xffffff, 0.49, 0.85, 0.3);
+    checkAllLoaded();
+    cactus[17] = createMultiLine(["Yes, clear context (90% used)", "and auto-accept edits"], 0xffffff, 0.49, 0.85, 0.3);
+    checkAllLoaded();
+    cactus[18] = createMultiLine(["Yes, clear context (95% used)", "and auto-accept edits"], 0xffffff, 0.49, 0.85, 0.3);
+    checkAllLoaded();
+    cactus[19] = createMultiLine(["Yes, clear context (99% used)", "and auto-accept edits"], 0xffffff, 0.49, 0.85, 0.3);
+    checkAllLoaded();
+    // "git commit and push" - decreases context
+    cactus[20] = createSingleLine('git commit and push', 0xffffff, 0.63, 0.35);
+    checkAllLoaded();
+    // "/compact" - final boss, pre-baked large, spawned separately at 200k
+    cactus[21] = createSingleLine('/compact', 0xffffff, 2.5, 1.0);
+    checkAllLoaded();
+  });
+});
+load_manager.set_loader('ptero', ['ground','cactus'], function() {
+  let frames = [];
+  let framesCount = 5; // including 0
+
   let fontLoader = new THREE.FontLoader();
   fontLoader.load(config.base_path + 'libs/three/fonts/helvetiker_bold.typeface.json', function(font) {
-    let textGeometry = new THREE.TextBufferGeometry('5h Limit', {
+    let geo = new THREE.TextBufferGeometry('overloaded_error', {
       font: font,
       size: 0.8,
       height: 0.4,
       curveSegments: 4,
       bevelEnabled: false
     });
-    textGeometry.center();
-    // Shift geometry up so bottom edge sits at y=0 (above ground)
-    textGeometry.computeBoundingBox();
-    let textHeight = textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y;
-    textGeometry.translate(0, textHeight / 2, 0);
+    geo.center();
+    geo.computeBoundingBox();
+    geo.translate(0, (geo.boundingBox.max.y - geo.boundingBox.min.y) / 2, 0);
+    geo.isTextObstacle = true;
 
-    let textMaterial = new THREE.MeshLambertMaterial({ color: 0xcc3333 });
+    let mat = new THREE.MeshLambertMaterial({ color: 0xcc3333 });
 
-    // Wrapper mimicking vox.MeshBuilder interface for compatibility
-    let textBuilder = {
-      geometry: textGeometry,
-      material: textMaterial,
-      createMesh: function() {
-        return new THREE.Mesh(this.geometry, this.material);
-      }
+    let builder = {
+      geometry: geo,
+      material: mat,
+      createMesh: function() { return new THREE.Mesh(this.geometry, this.material); }
     };
 
-    cactus[cactusFiles.length] = textBuilder;
-    checkAllLoaded();
-
-    // 3-line text block: "You're / absolutely / right"
-    let lines = ["You're", "absolutely", "right"];
-    let lineSize = 0.55;
-    let lineSpacing = 0.85;
-    let merged = new THREE.Geometry();
-
-    for (let l = 0; l < lines.length; l++) {
-      let lineGeo = new THREE.TextGeometry(lines[l], {
-        font: font,
-        size: lineSize,
-        height: 0.3,
-        curveSegments: 4,
-        bevelEnabled: false
-      });
-      lineGeo.center();
-      // Stack lines top to bottom
-      lineGeo.translate(0, (lines.length - 1 - l) * lineSpacing, 0);
-      merged.merge(lineGeo);
+    // Fill all frames with the same static text (no animation)
+    for (let i = 0; i <= framesCount; i++) {
+      frames[i] = builder;
     }
 
-    let blockGeometry = new THREE.BufferGeometry().fromGeometry(merged);
-    blockGeometry.computeBoundingBox();
-    // Put bottom edge at y=0 so it sits on the ground
-    blockGeometry.translate(0, -blockGeometry.boundingBox.min.y, 0);
-    blockGeometry.isTextObstacle = true;
-
-    let blockMaterial = new THREE.MeshLambertMaterial({ color: 0xcc3333 });
-
-    let blockBuilder = {
-      geometry: blockGeometry,
-      material: blockMaterial,
-      createMesh: function() {
-        return new THREE.Mesh(this.geometry, this.material);
-      }
-    };
-
-    cactus[cactusFiles.length + 1] = blockBuilder;
-    checkAllLoaded();
-
-    // Big single-line text: "Flibbertigibbeting..."
-    let flibGeo = new THREE.TextBufferGeometry('Flibbertigibbeting\u2026', {
-      font: font,
-      size: 1.1,
-      height: 0.5,
-      curveSegments: 4,
-      bevelEnabled: false
-    });
-    flibGeo.center();
-    flibGeo.computeBoundingBox();
-    flibGeo.translate(0, (flibGeo.boundingBox.max.y - flibGeo.boundingBox.min.y) / 2, 0);
-
-    let flibMaterial = new THREE.MeshLambertMaterial({ color: 0xcc3333 });
-
-    let flibBuilder = {
-      geometry: flibGeo,
-      material: flibMaterial,
-      createMesh: function() {
-        return new THREE.Mesh(this.geometry, this.material);
-      }
-    };
-
-    cactus[cactusFiles.length + 2] = flibBuilder;
-    checkAllLoaded();
+    load_manager.set_vox('ptero', frames);
+    load_manager.set_status('ptero', true);
   });
-});
-load_manager.set_loader('ptero', ['ground','cactus'], function() {
-  let parser = new vox.Parser();
-  let frames = [];
-  let framesCount = 5; // including 0
-
-  for(let i = 0; i <= framesCount; i++) {
-    // load all .vox frames
-    parser.parse(config.base_path + 'objects/ptero/' + i + '.vox').then(function(voxelData) {
-      let builder = new vox.MeshBuilder(voxelData, {voxelSize: .1});
-      let material = new THREE.MeshLambertMaterial();
-      material.map = vox.MeshBuilder.textureFactory.getTexture(voxelData);
-      builder.material = material;
-
-      frames[i] = builder;
-
-      if(frames.length - 1 == framesCount) {
-        load_manager.set_vox('ptero', frames);
-        load_manager.set_status('ptero', true);
-      }
-    });
-  }
 });
 
 load_manager.set_loader('rocks', ['ground'], function() {
@@ -2918,8 +3227,7 @@ load_manager.set_loader('rocks', ['ground'], function() {
       }
     });
   }
-});
-load_manager.set_loader('flowers', ['ground'], function() {
+});load_manager.set_loader('flowers', ['ground'], function() {
   let parser = new vox.Parser();
 
   let flowers = [];
@@ -2941,8 +3249,7 @@ load_manager.set_loader('flowers', ['ground'], function() {
       }
     });
   }
-});
-load_manager.set_loader('misc', ['ground'], function() {
+});load_manager.set_loader('misc', ['ground'], function() {
   let parser = new vox.Parser();
 
   let misc = [];
@@ -2972,7 +3279,6 @@ load_manager.set_loader('misc', ['ground'], function() {
     });
   }
 });
-
 load_manager.set_loader('t_ground', [], function() {
 	let loader = new THREE.TextureLoader();
 	let textures = {
@@ -2993,7 +3299,6 @@ load_manager.set_loader('t_ground', [], function() {
 	    load_manager.set_status('t_ground', true);
 	});
 });
-
 /**
  * Effects class.
  * Rain, day/night, etc.
@@ -3218,8 +3523,7 @@ class EffectsManager {
 
       
     }
-  }
-let effects = new EffectsManager();
+  }let effects = new EffectsManager();
 
 /**
  * GameManager class.
@@ -3310,10 +3614,13 @@ class GameManager {
 		this.isPlaying = true;
 
 		// set running speed (def 13)
-		enemy.increase_velocity(15, true);
+		enemy.increase_velocity(20, true);
 
         // init score
         score.set(0);
+
+        // init context window
+        context.init();
 
         // init stuff
         // if(this.isFirstStart) {
@@ -3403,7 +3710,7 @@ class GameManager {
         }
 	}
 
-    stop() {
+    stop(cause = 'default') {
         if(!this.isPlaying) {return false;}
 
         // stop the loop
@@ -3417,7 +3724,15 @@ class GameManager {
         // stop stuff
         audio.stop('bg');
 
-        // show restart button
+        // show restart button with cause-appropriate game over message
+        var msgs = {
+            'overloaded': ["You need a pause.", "Hydrate. Then try again."],
+            'limit':      ["Time to take a break."],
+            'compact':    ["Touch grass.", "Go outside. It's nice out.", "Skill issue."],
+            'default':    ["Time to take a break.", "Touch grass.", "Skill issue.", "Go outside. It's nice out.", "Hydrate. Then try again.", "You need a pause."],
+        };
+        var pool = msgs[cause] || msgs['default'];
+        document.getElementById('game-over-msg').textContent = pool[Math.floor(Math.random() * pool.length)];
         this.interface.buttons.restart.classList.remove('hidden');
 
         // play kill sound & frame
@@ -3450,7 +3765,7 @@ class GameManager {
 
     reset() {
         // reset running speed (def 13)
-        enemy.increase_velocity(13, true);
+        enemy.increase_velocity(18, true);
 
         // reset stuff
         enemy.reset();
@@ -3458,6 +3773,7 @@ class GameManager {
         score.reset();
         player.reset();
         effects.reset();
+        context.init();
 
         // redraw to remove objects from scene
         this.render();
@@ -3498,6 +3814,7 @@ class GameManager {
         }
 
         score.update(timeDelta);
+        context.update(timeDelta);
     }
 
     tabVisibilityChanged(state) {
@@ -3530,8 +3847,7 @@ class GameManager {
 
         this.render();
     }
-}
-/**
+}/**
  * InterfaceManager class.
  * @type {InterfaceManager}
  */
@@ -3571,6 +3887,5 @@ class InterfaceManager {
 
    		game.restart();
     }
-}
-let game = new GameManager(new InterfaceManager());
+}let game = new GameManager(new InterfaceManager());
 game.init(); // init game & interface ASAP
