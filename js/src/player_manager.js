@@ -24,6 +24,15 @@
             "gravity": -30 // new g
           }
       }
+      this.eject = {
+          active: false,
+          velY: 0,
+          velX: 0,
+          velZ: 0,
+          rotVelY: 0,
+          rotVelZ: 0,
+          gravity: -22
+      }
     }
 
     init() {
@@ -128,6 +137,17 @@
             this.collisionBox.position.z = this.frame.position.z - .3;
             this.collisionBox.position.y = this.frame.position.y + 0.45;
         }
+    }
+
+    startEject() {
+        if(!this.frame) return;
+        this.eject.active = true;
+        this.eject.velY    = 7 + Math.random() * 4;
+        this.eject.velX    = (Math.random() - 0.5) * 5;
+        this.eject.velZ    = -(2 + Math.random() * 3); // fly backward
+        this.eject.rotVelY = (Math.random() - 0.5) * 8;
+        this.eject.rotVelZ = (Math.random() - 0.5) * 6;
+        if(this.collisionBox) this.collisionBox.visible = false;
     }
 
     deathFrame() {
@@ -264,11 +284,25 @@
     }
 
     reset() {
+        this.eject.active = false;
+        if(this.frame) {
+            this.frame.rotation.z = 0;
+        }
         this.currentFrame = 0;
         this.nextFrame();
     }
 
     update(timeDelta) {
+        if(this.eject.active && this.frame) {
+            this.eject.velY += this.eject.gravity * timeDelta;
+            this.frame.position.y += this.eject.velY * timeDelta;
+            this.frame.position.x += this.eject.velX * timeDelta;
+            this.frame.position.z += this.eject.velZ * timeDelta;
+            this.frame.rotation.y += this.eject.rotVelY * timeDelta;
+            this.frame.rotation.z += this.eject.rotVelZ * timeDelta;
+            return;
+        }
+
         if( this.frames ) {
             this.anim_speed = 0.18 / (enemy.config.vel / 2);
             this.doJump(timeDelta);

@@ -10,6 +10,8 @@ class GameManager {
         this.isPaused = false;
         this.isFirstStart = true;
         this.lastTimeDelta = false;
+        this.isDying = false;
+        this.deathTimer = 0;
 
         this.interface = interface_manager;
         this.starter = null;
@@ -186,8 +188,10 @@ class GameManager {
     stop(cause = 'default') {
         if(!this.isPlaying) {return false;}
 
-        // stop the loop
+        // stop game logic but keep loop alive for death animation
     	this.isPlaying = false;
+        this.isDying = true;
+        this.deathTimer = 1.5;
 
 		// remove dust particles
 		dynoDustEmitter.removeAllParticles();
@@ -208,8 +212,9 @@ class GameManager {
         document.getElementById('game-over-msg').textContent = pool[Math.floor(Math.random() * pool.length)];
         this.interface.buttons.restart.classList.remove('hidden');
 
-        // play kill sound & frame
+        // eject Clawdino & show death frame
         player.deathFrame();
+        player.startEject();
         audio.play('killed');
 
         // set starters
@@ -237,6 +242,9 @@ class GameManager {
     }
 
     reset() {
+        this.isDying = false;
+        this.deathTimer = 0;
+
         // reset running speed (def 13)
         enemy.increase_velocity(18, true);
 
@@ -266,6 +274,22 @@ class GameManager {
 
         if(timeDelta > 0.15) {
             timeDelta = 0.15;
+        }
+
+        // death animation — only update player eject & word physics
+        if(this.isDying) {
+            player.update(timeDelta);
+            enemy.updateEjecting(timeDelta);
+            if(config.renderer.postprocessing.enable) {
+                composer.render(timeDelta);
+            } else {
+                renderer.render(scene, camera);
+            }
+            this.deathTimer -= timeDelta;
+            if(this.deathTimer <= 0) {
+                this.isDying = false;
+            }
+            return;
         }
 
         if(config.camera.controls) {
@@ -309,7 +333,7 @@ class GameManager {
     }
 
     loop() {
-        if(!this.isPlaying) {
+        if(!this.isPlaying && !this.isDying) {
             // stop the loop if necessary
             return false;
         }

@@ -84,8 +84,16 @@ class EnemyManager {
 			"ptero_anim_speed": 0.10, // lower is faster
 			"ptero_y_rand": [0, 1.3, 3.5], // random ptero y positions
 
-			"ptero_z_speedup": -35
+			"ptero_z_speedup": -35,
+
+		"vertical_oscillation": {
+			"enabled": true,
+			"amplitude": 0.6,  // max Y offset in world units
+			"frequency": 1.4   // oscillations per second
 		}
+		}
+
+		this.time = 0;
 
 		this.cache = {
 			"cactus": {
@@ -100,6 +108,7 @@ class EnemyManager {
 
 		this.compactMesh = null;
 		this.compactActive = false;
+		this.ejecting = []; // meshes flying away after non-fatal hit
 	}
 
 	hasDuplicates(array) {
@@ -212,6 +221,12 @@ class EnemyManager {
 					if(enemiesGroup[i].is_text_obstacle && i == 0 && Math.floor(Math.random() * 100) < this.config.elevated_chance) {
 						let yIdx = this.random(0, this.config.elevated_y_offsets.length, false);
 						enemiesGroup[i].position.y += this.config.elevated_y_offsets[yIdx];
+					}
+
+					// store base Y and random phase for vertical oscillation
+					if(enemiesGroup[i].is_text_obstacle) {
+						enemiesGroup[i].userData.baseY = enemiesGroup[i].position.y;
+						enemiesGroup[i].userData.verticalPhase = Math.random() * Math.PI * 2;
 					}
 
 					// random scale
@@ -346,6 +361,12 @@ class EnemyManager {
 				} else {
 					// cactus
 					e[j].position.z += this.config.vel * timeDelta;
+
+					// vertical oscillation for text obstacles
+					if(e[j].is_text_obstacle && this.config.vertical_oscillation.enabled && e[j].userData.baseY !== undefined) {
+						let osc = this.config.vertical_oscillation;
+						e[j].position.y = e[j].userData.baseY + osc.amplitude * Math.sin(this.time * osc.frequency + e[j].userData.verticalPhase);
+					}
 				}
 
 				/**
@@ -370,10 +391,11 @@ class EnemyManager {
 			if(hitResult && hitResult.startsWith('gameover')) {
 				game.stop(hitResult.replace('gameover_', ''));
 				return;
-			} else if(hitResult === 'despawn') {
+			} else if(hitResult === 'eject') {
+				let ejectKey = this.buffer[i];
 				let newEnemy = this.spawn();
-				this.despawn(this.buffer[i]);
 				this.buffer[i] = newEnemy;
+				this.startEjectObstacle(ejectKey);
 			}
 		}
 
@@ -418,6 +440,7 @@ class EnemyManager {
 			this.compactMesh.visible = false;
 		}
 		this.compactActive = false;
+		this.ejecting = [];
 	}
 
 	getEligibleKey() {
@@ -477,7 +500,11 @@ class EnemyManager {
 
 		if(effectMap[idx]) effectMap[idx]();
 
-		return 'despawn';
+		// speed bump on context-adding hits
+		const contextAddsIdx = new Set([0, 1, 2, 3, 4, 7, 8, 13, 14]);
+		if(contextAddsIdx.has(idx)) this.increase_velocity(1);
+
+		return 'eject';
 	}
 
 	initCompact() {
@@ -521,6 +548,58 @@ class EnemyManager {
 	spawnPteros() {
 		for(let i = 0; i < this.config.max_amount.pool.ptero; i++) {
 			this.pool.addItem(this.createEnemy('ptero'));
+		}
+	}
+
+	startEjectObstacle(k) {
+		let group = this.pool.getItem(k);
+		let sign = Math.random() > 0.5 ? 1 : -1;
+
+		// ensure mesh stays visible during eject
+		for(let j = 0; j < group.length; j++) {
+			group[j].visible = true;
+		}
+
+		this.ejecting.push({
+			key:     k,
+			velY:    8 + Math.random() * 6,              // strong upward launch
+			velX:    sign * (0.5 + Math.random() * 1.5),  // gentle sideways drift
+			velZ:    0.5 + Math.random() * 1.5,           // drift toward camera slightly
+			rotVelY: (Math.random() - 0.5) * 12,          // spin on Y only (keeps text flat/readable)
+			rotVelX: 0,
+			rotVelZ: 0,
+			gravity: -14,
+			life:    1.5
+		});
+	}
+
+	updateEjecting(timeDelta) {
+		for(let i = this.ejecting.length - 1; i >= 0; i--) {
+			let e = this.ejecting[i];
+			let group = this.pool.getItem(e.key);
+
+			e.life -= timeDelta;
+			e.velY += e.gravity * timeDelta;
+
+			// fade out by shrinking in last 0.4s
+			let scaleFactor = e.life < 0.4 ? (e.life / 0.4) : 1;
+
+			for(let j = 0; j < group.length; j++) {
+				group[j].position.y += e.velY * timeDelta;
+				group[j].position.x += e.velX * timeDelta;
+				group[j].position.z += e.velZ * timeDelta;
+				group[j].rotation.y += e.rotVelY * timeDelta;
+				group[j].scale.set(scaleFactor, scaleFactor, scaleFactor);
+			}
+
+			if(e.life <= 0) {
+				for(let j = 0; j < group.length; j++) {
+					group[j].visible = false;
+					group[j].scale.set(1, 1, 1);
+				}
+				this.pool.returnKey(e.key);
+				this.ejecting.splice(i, 1);
+			}
 		}
 	}
 
@@ -632,7 +711,9 @@ class EnemyManager {
     }
 
     update(timeDelta) {
+    	this.time += timeDelta;
     	this.move(timeDelta);
+    	this.updateEjecting(timeDelta);
 
 	    // draw ptero frames
 	    if( this.clock.getElapsedTime() > this.config.ptero_anim_speed ) {
