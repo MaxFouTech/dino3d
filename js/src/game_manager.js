@@ -201,15 +201,23 @@ class GameManager {
         // stop stuff
         audio.stop('bg');
 
-        // show restart button with cause-appropriate game over message
+        // show restart button with cause-appropriate game over message + session recap
         var msgs = {
             'overloaded': ["You need a pause.", "Hydrate. Then try again."],
             'limit':      ["Time to take a break."],
-            'compact':    ["Touch grass.", "Go outside. It's nice out.", "Skill issue."],
             'default':    ["Time to take a break.", "Touch grass.", "Skill issue.", "Go outside. It's nice out.", "Hydrate. Then try again.", "You need a pause."],
         };
         var pool = msgs[cause] || msgs['default'];
-        document.getElementById('game-over-msg').textContent = pool[Math.floor(Math.random() * pool.length)];
+        var msg = pool[Math.floor(Math.random() * pool.length)];
+
+        // Build recap
+        var timeStr = score.formatTime(score.getSessionTime());
+        var features = score.features;
+        var recap = msg + '\n' + timeStr + ' coded';
+        if(features > 0) {
+            recap += ' · ' + features + ' feature' + (features > 1 ? 's' : '') + ' pushed';
+        }
+        document.getElementById('game-over-msg').textContent = recap;
         this.interface.buttons.restart.classList.remove('hidden');
 
         // eject Clawdino & show death frame

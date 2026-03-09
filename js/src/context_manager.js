@@ -20,7 +20,7 @@ class ContextManager {
             this.canvas = document.createElement('canvas');
             this.canvas.id = 'context-bar';
             this.canvas.width = 320;
-            this.canvas.height = 50;
+            this.canvas.height = 65;
             document.body.appendChild(this.canvas);
             this.ctx = this.canvas.getContext('2d');
         }
@@ -57,6 +57,7 @@ class ContextManager {
 
     _clampAndCheck() {
         if (this.tokens < 5000) this.tokens = 5000;
+
         if (this.tokens >= this.max) {
             this.tokens = this.max;
             if (!this.compactSpawned) {
@@ -79,7 +80,7 @@ class ContextManager {
         let w = this.canvas.width;
         let pct = this.getPercent();
 
-        this.ctx.clearRect(0, 0, w, 50);
+        this.ctx.clearRect(0, 0, w, 65);
 
         // Background bar
         this.ctx.fillStyle = 'rgba(40, 55, 65, 0.9)';
@@ -102,5 +103,12 @@ class ContextManager {
         this.ctx.font = '10px "Press Start 2P"';
         this.ctx.fillStyle = 'rgba(106, 133, 145, 1)';
         this.ctx.fillText(tokenText, 0, 36);
+
+        // Feature counter
+        let featureCount = (typeof score !== 'undefined') ? score.features : 0;
+        let featureText = 'features pushed: ' + featureCount;
+        this.ctx.font = '10px "Press Start 2P"';
+        this.ctx.fillStyle = 'rgba(51, 204, 102, 1)';
+        this.ctx.fillText(featureText, 0, 54);
     }
 }

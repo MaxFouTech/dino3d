@@ -239,6 +239,8 @@
                 } else {
                     progress = 1 - (currentHeight / jumpHeight) * 0.5;
                 }
+                // Clamp progress to [0,1] to prevent partial rotations from boost
+                progress = Math.max(0, Math.min(1, progress));
                 this.frame.rotation.y = this.jump.spin_start + progress * Math.PI * 4;
             }
             // Swap arm geometry based on velocity
@@ -286,8 +288,20 @@
     reset() {
         this.eject.active = false;
         if(this.frame) {
+            // restore position and rotation after death eject
+            this.frame.position.y = this.frame.init_y;
+            this.frame.position.x = this.frames[0].position.x;
+            this.frame.position.z = this.frames[0].position.z;
+            this.frame.rotation.y = Math.PI / 2;
             this.frame.rotation.z = 0;
+            if(this.collisionBox) {
+                this.collisionBox.position.x = this.frame.position.x;
+                this.collisionBox.position.y = this.frame.position.y + 0.9;
+                this.collisionBox.position.z = this.frame.position.z;
+                this.collisionBox.visible = false;
+            }
         }
+        this.jump.is_active = false;
         this.currentFrame = 0;
         this.nextFrame();
     }

@@ -18,6 +18,11 @@ class ScoreManager {
       this.clock = new THREE.Clock();
       this.last_flash_score = 0;
 
+      // Feature counter & session timer
+      this.features = 0;
+      this.sessionStart = 0;
+      this.sessionElapsed = 0;
+
       Number.prototype.pad = function(size) {
           var s = String(this);
           while (s.length < (size || 2)) {s = "0" + s;}
@@ -43,6 +48,9 @@ class ScoreManager {
 
     set(points) {
       this.score = points;
+      this.features = 0;
+      this.sessionStart = Date.now();
+      this.sessionElapsed = 0;
 
       // get last highest score
       this.highest_score = localStorage.getItem('highest_score');
@@ -52,6 +60,20 @@ class ScoreManager {
       } else {
         this.highest_alert = false;
       }
+    }
+
+    addFeature() {
+      this.features++;
+    }
+
+    getSessionTime() {
+      return this.sessionElapsed;
+    }
+
+    formatTime(seconds) {
+      let m = Math.floor(seconds / 60);
+      let s = Math.floor(seconds % 60);
+      return (m > 0 ? m + 'm ' : '') + s + 's';
     }
 
     add(points) {
@@ -105,10 +127,14 @@ class ScoreManager {
       this.clock = new THREE.Clock();
       this.lvl = 0;
       this.add_vel = 10;
+      this.features = 0;
+      this.sessionStart = 0;
+      this.sessionElapsed = 0;
     }
 
     update(timeDelta) {
       this.add(this.add_vel * timeDelta);
+      if(this.sessionStart) this.sessionElapsed = (Date.now() - this.sessionStart) / 1000;
 
       let text = '';
       if(this.highest_score > 9999) {

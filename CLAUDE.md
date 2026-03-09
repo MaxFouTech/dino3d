@@ -63,10 +63,11 @@ All managers are global singletons instantiated in this order:
 
 - `EnemyPool`: pool of pre-created mesh groups (60 cactus + 18 ptero slots)
 - `EnemyManager.buffer`: currently active obstacle keys (max 15)
-- Obstacles are typed by `mesh.userData.cactusIndex` (0–20 for cactus, index 21 = `/compact` spawned separately)
+- Obstacles are typed by `mesh.userData.cactusIndex` (0–20, 22 for cactus, index 21 = `/compact` spawned separately)
 - `getEligibleKey()` filters the pool based on `context.getPercent()` — some obstacles only appear at certain context thresholds
-- `applyObstacleEffect(mesh)` handles hits: returns `'gameover_*'` for fatal hits, `'despawn'` for survivable hits
-- `/compact` (index 21) lives in `enemy.compactMesh`, spawned by `spawnCompact()` when context reaches 200k
+- `applyObstacleEffect(mesh)` handles hits: returns `'gameover_*'` for fatal hits, `'eject'` for survivable hits
+- `/compact` (index 21) lives in `enemy.compactMesh`, spawned by `spawnCompact()` when context reaches 200k (resets velocity, not game over)
+- `resetVelocity()` resets to starting speed (20), `reduceVelocity(factor)` multiplies current velocity
 
 ### Context window system (`js/src/context_manager.js`)
 
@@ -77,29 +78,36 @@ All managers are global singletons instantiated in this order:
 
 ### Cactus obstacle index reference
 
-| Index | Label | Effect |
-|-------|-------|--------|
-| 0–3 | Orange verb phrases | +9k context |
-| 4 | You're/absolutely/right | +60k context |
-| 5 | 5-hour limit reached | **GAME OVER** (random spawn) |
-| 6 | Context low / Run /compact | No effect, spawns at ≥80% context |
-| 7 | Flibbertigibbeting… | +18k context |
-| 8 | ultrathink | +150k context (rainbow) |
-| 9 | /clear | Reset to 5k |
-| 10 | /extra-usage | ×2 context |
-| 11 | /fast | +5 velocity, no context change |
-| 12 | /rewind | −20k context |
-| 13 | /mcp | +24k context |
-| 14 | /init | +45k context |
-| 15–19 | Yes, clear context (80/85/90/95/99%) | Reset to 5k, spawn at ≥80% |
-| 20 | git commit and push | Reset to 5k, spawn at ≥50% |
-| 21 | /compact (BIG) | **GAME OVER**, spawned at 200k |
+| Index | Label | Color | Context | Velocity | Notes |
+|-------|-------|-------|---------|----------|-------|
+| 0–3 | Mustering/Reticulating/Honking/Vibing… | Orange | +9k | +10 | |
+| 4 | You're/absolutely/right | White | +60k | +5 | |
+| 5 | 5-hour limit reached | Red | — | — | **GAME OVER** |
+| 6 | Context low / Run /compact | Red | none | +5 | Spawns at ≥80% |
+| 7 | Flibbertigibbeting… | Red | +18k | +10 | |
+| 8 | ultrathink | Rainbow | +150k | +20 | |
+| 9 | /clear | White | Reset 5k | reset | |
+| 10 | /extra-usage | White | — | — | REMOVED (excluded from spawns) |
+| 11 | /fast | White | none | +40 | |
+| 12 | /rewind | White | −20k | −50% | |
+| 13 | /mcp | White | +24k | +5 | |
+| 14 | /init | White | +45k | +10 | |
+| 15–19 | Yes, clear context (80–99%) | White | Reset 5k | −30% | Spawns at ≥80% |
+| 20 | git commit | White | Reset 5k | −20% | Spawns at ≥50% |
+| 21 | /compact (BIG) | White | none | reset | Spawned at 200k (not game over) |
+| 22 | git push | Green | Reset 5k | +5 | Spawns at ≥80%, +1 feature |
 
 Ptero (`overloaded_error`, red, flying): **GAME OVER**, spawns at score ≥400.
 
+### Feature tracking
+
+- Only `git push` (index 22) increments the feature counter
+- Feature count displayed below the context bar in green
+- Game over screen shows session recap: time played + features pushed
+
 ### Asset loading
 
-`LoadManager` (`js/src/load_manager.js`) uses `load_manager.set_loader('cactus', ...)` / `load_manager.set_loader('ptero', ...)`. Geometry files live in `js/src/geometry/`. `totalToLoad = 22` (cactus[0–21]).
+`LoadManager` (`js/src/load_manager.js`) uses `load_manager.set_loader('cactus', ...)` / `load_manager.set_loader('ptero', ...)`. Geometry files live in `js/src/geometry/`. `totalToLoad = 23` (cactus[0–22]).
 
 ### Libraries (vendored in `libs/`)
 

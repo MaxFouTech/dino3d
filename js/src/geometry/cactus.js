@@ -1,6 +1,6 @@
 load_manager.set_loader('cactus', ['ground'], function() {
   let cactus = [];
-  let totalToLoad = 22;
+  let totalToLoad = 23;
   let loadedCount = 0;
 
   function checkAllLoaded() {
@@ -132,7 +132,7 @@ load_manager.set_loader('cactus', ['ground'], function() {
     checkAllLoaded();
 
     // "Flibbertigibbeting..." - red
-    cactus[7] = createSingleLine('Flibbertigibbeting\u2026', 0xcc3333, 1.82, 0.5);
+    cactus[7] = createSingleLine('Flibbertigibbeting\u2026', 0xff8c00, 1.82, 0.5);
     checkAllLoaded();
 
     // "ultrathink" - rainbow per-letter colors
@@ -146,7 +146,7 @@ load_manager.set_loader('cactus', ['ground'], function() {
     // Slash commands - white
     cactus[9] = createSingleLine('/clear', 0xffffff, 0.84, 0.4);       // decreases context
     checkAllLoaded();
-    cactus[10] = createSingleLine('/extra-usage', 0xffffff, 1.56, 0.4);
+    cactus[10] = createSingleLine('/extra-usage', 0xffffff, 1.56, 0.4); // legacy slot, kept for index alignment
     checkAllLoaded();
     cactus[11] = createSingleLine('/fast', 0xffffff, 1.56, 0.4);
     checkAllLoaded();
@@ -167,11 +167,14 @@ load_manager.set_loader('cactus', ['ground'], function() {
     checkAllLoaded();
     cactus[19] = createMultiLine(["Yes, clear context (99% used)", "and auto-accept edits"], 0xffffff, 0.49, 0.85, 0.3);
     checkAllLoaded();
-    // "git commit and push" - decreases context
-    cactus[20] = createSingleLine('git commit and push', 0xffffff, 0.63, 0.35);
+    // "git commit" - decreases context
+    cactus[20] = createSingleLine('git commit', 0xffffff, 0.63, 0.35);
     checkAllLoaded();
-    // "/compact" - final boss, pre-baked large, spawned separately at 200k
+    // "/compact" - pre-baked large, spawned separately at 200k (resets velocity)
     cactus[21] = createSingleLine('/compact', 0xffffff, 2.5, 1.0);
+    checkAllLoaded();
+    // "git push" - green, spawned at >=80% context, counts as feature
+    cactus[22] = createSingleLine('git push', 0x33cc66, 0.63, 0.35);
     checkAllLoaded();
   });
 });

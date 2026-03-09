@@ -90,7 +90,10 @@ class EnemyManager {
 			"enabled": true,
 			"amplitude": 0.6,  // max Y offset in world units
 			"frequency": 1.4   // oscillations per second
-		}
+		},
+
+		"friction": 1.5,       // velocity lost per second (speed decay)
+		"min_vel": 10          // floor — game never stops
 		}
 
 		this.time = 0;
@@ -132,6 +135,10 @@ class EnemyManager {
 			for(let i = 0; i < this.config.max_amount.pool.cactus; i++) {
 				this.pool.addItem(this.createEnemy('cactus'));
 			}
+			// extra git push obstacles (index 22) for higher spawn frequency
+			for(let i = 0; i < 10; i++) {
+				this.pool.addItem(this.createEnemyByIndex(22));
+			}
 		}
 
 		// initial buffer fill
@@ -143,12 +150,35 @@ class EnemyManager {
 		this.initCompact();
 	}
 
+	createEnemyByIndex(idx) {
+		let mesh = new THREE.Mesh(
+			this.cache.cactus.geometry[idx],
+			this.cache.cactus.material[idx]
+		);
+		mesh.enemy_type = 'cactus';
+		mesh.userData.cactusIndex = idx;
+		mesh.is_text_obstacle = (mesh.geometry.type === 'TextBufferGeometry' || mesh.geometry.isTextObstacle === true);
+		mesh.castShadow = true;
+		mesh.visible = false;
+		scene.add(mesh);
+		return [mesh];
+	}
+
 	createEnemy(type = 'cactus', tail = false, tail_number = 0) {
 		// get random mesh (within given type)
-		// cactus: exclude last index (21 = /compact, spawned separately)
+		// cactus: exclude index 21 (/compact, spawned separately)
 		let meshCount = load_manager.assets[type].mesh.length;
-		if(type === 'cactus') meshCount--;
-		let rand = Math.floor(Math.random() * meshCount);
+		let rand;
+		if(type === 'cactus') {
+			// Pick from all indices except 21 (/compact)
+			let indices = [];
+			for(let ci = 0; ci < meshCount; ci++) {
+				if(ci !== 21) indices.push(ci);
+			}
+			rand = indices[Math.floor(Math.random() * indices.length)];
+		} else {
+			rand = Math.floor(Math.random() * meshCount);
+		}
 		let mesh = new THREE.Mesh(
 			this.cache[type].geometry[rand],
 			this.cache[type].material[rand]
@@ -399,7 +429,7 @@ class EnemyManager {
 			}
 		}
 
-		// move /compact final boss separately
+		// move /compact separately
 		if(this.compactActive && this.compactMesh && this.compactMesh.visible) {
 			this.compactMesh.position.z += this.config.vel * timeDelta;
 
@@ -413,7 +443,10 @@ class EnemyManager {
 				let pBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
 				pBox.setFromObject(player.collisionBox);
 				if(eBox.intersectsBox(pBox)) {
-					game.stop('compact');
+					// /compact: big speed boost reward for surviving
+					this.increase_velocity(15);
+					this.compactMesh.visible = false;
+					this.compactActive = false;
 					return;
 				}
 			}
@@ -454,9 +487,11 @@ class EnemyManager {
 
 			let idx = mesh.userData.cactusIndex;
 			if(idx === undefined || idx === null) return true;
-			if(idx === 6 && pct < 0.80) return false;            // Context low: only at >=80%
+			if(idx === 10) return false;                            // /extra-usage: removed
+			if(idx === 6 && pct < 0.80) return false;              // Context low: only at >=80%
 			if(idx >= 15 && idx <= 19 && pct < 0.80) return false; // Yes, clear context: only at >=80%
-			if(idx === 20 && pct < 0.50) return false;             // git commit and push: only at >=50%
+			if(idx === 20 && pct < 0.50) return false;             // git commit: only at >=50%
+			if(idx === 22 && pct < 0.70) return false;             // git push: only at >=70%
 			return true;
 		});
 
@@ -476,33 +511,33 @@ class EnemyManager {
 		if(idx === 5) return 'gameover_limit'; // 5-hour limit reached
 
 		let effectMap = {
-			0:  () => context.add(9000),
-			1:  () => context.add(9000),
-			2:  () => context.add(9000),
-			3:  () => context.add(9000),
-			4:  () => context.add(60000),
-			6:  () => {},                         // Context low: no impact
-			7:  () => context.add(18000),
-			8:  () => context.add(150000),
-			9:  () => context.set(5000),
-			10: () => context.multiply(2),
-			11: () => this.increase_velocity(5),  // /fast: speed up, no context change
-			12: () => context.add(-20000),
-			13: () => context.add(24000),
-			14: () => context.add(45000),
-			15: () => context.set(5000),
-			16: () => context.set(5000),
-			17: () => context.set(5000),
-			18: () => context.set(5000),
-			19: () => context.set(5000),
-			20: () => context.set(5000),
+			0:  () => { context.add(9000);   this.increase_velocity(10); },
+			1:  () => { context.add(9000);   this.increase_velocity(10); },
+			2:  () => { context.add(9000);   this.increase_velocity(10); },
+			3:  () => { context.add(9000);   this.increase_velocity(10); },
+			4:  () => { context.add(60000);  this.increase_velocity(5); },
+			6:  () => { this.increase_velocity(5); },   // Context low: no context impact
+			7:  () => { context.add(18000);  this.increase_velocity(10); },
+			8:  () => { context.add(150000); this.increase_velocity(20); },
+			9:  () => { context.set(5000);   this.increase_velocity(3); },   // /clear
+			11: () => { this.increase_velocity(40); },                        // /fast
+			12: () => { context.add(-20000); this.increase_velocity(3); },   // /rewind
+			13: () => { context.add(24000);  this.increase_velocity(5); },
+			14: () => { context.add(45000);  this.increase_velocity(10); },
+			15: () => { context.set(5000);   this.increase_velocity(5); },
+			16: () => { context.set(5000);   this.increase_velocity(5); },
+			17: () => { context.set(5000);   this.increase_velocity(5); },
+			18: () => { context.set(5000);   this.increase_velocity(5); },
+			19: () => { context.set(5000);   this.increase_velocity(5); },
+			20: () => { context.set(5000);   this.increase_velocity(5); },   // git commit
+			22: () => {                                                        // git push: +1 feature
+				score.addFeature();
+				context.set(5000);
+				this.increase_velocity(5);
+			},
 		};
 
 		if(effectMap[idx]) effectMap[idx]();
-
-		// speed bump on context-adding hits
-		const contextAddsIdx = new Set([0, 1, 2, 3, 4, 7, 8, 13, 14]);
-		if(contextAddsIdx.has(idx)) this.increase_velocity(1);
 
 		return 'eject';
 	}
@@ -596,6 +631,7 @@ class EnemyManager {
 				for(let j = 0; j < group.length; j++) {
 					group[j].visible = false;
 					group[j].scale.set(1, 1, 1);
+					group[j].rotation.set(0, 0, 0); // reset rotation after eject spin
 				}
 				this.pool.returnKey(e.key);
 				this.ejecting.splice(i, 1);
@@ -625,15 +661,14 @@ class EnemyManager {
 	}
 
     increase_velocity(add = 1, init = false) {
-        if(this.config.vel >= 35 && !init)
-            {return;}
 
         if(init) {
         	// set
         	this.config.vel = add;
         } else {
-        	// add
-        	this.config.vel += add;
+        	// diminishing returns: boost shrinks as velocity grows
+        	let effective = add / (1 + this.config.vel / 25);
+        	this.config.vel += effective;
         }
 
         if(this.config.vel < 10) {
@@ -712,6 +747,11 @@ class EnemyManager {
 
     update(timeDelta) {
     	this.time += timeDelta;
+
+    	// Speed decay (friction)
+    	this.config.vel -= this.config.friction * timeDelta;
+    	if(this.config.vel < this.config.min_vel) this.config.vel = this.config.min_vel;
+
     	this.move(timeDelta);
     	this.updateEjecting(timeDelta);
 
