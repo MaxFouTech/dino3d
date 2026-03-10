@@ -1,12 +1,12 @@
-# Clawdino 3D
+# 🦀 Clawdino 3D
 
-A Claude Code-themed mod of the awesome [T-Rex Run 3D](https://github.com/Priler/dino3d) by Abraham Tugalov.
+An experimental Claude Code mod of this fun game [T-Rex Run 3D](https://github.com/Priler/dino3d) by Abraham Tugalov.
 
 **Play it here:** https://maxfoutech.github.io/clawdino/
 
 ## Screenshot
 
-![Clawdino 3D](screenshot.png)
+![Clawdino 3D](readme_image.png)
 
 ## About
 
